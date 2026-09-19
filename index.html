@@ -582,6 +582,14 @@
     .savings-summary-card strong { display: block; margin-top: 7px; font-size: 28px; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
     .savings-summary-card.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     .savings-summary-card.primary span { color: rgba(255,255,255,.75); }
+    .savings-forecast { margin-top: 14px; padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); display: grid; grid-template-columns: minmax(220px,.8fr) minmax(260px,1.2fr); gap: 18px; align-items: end; }
+    .savings-forecast-result { min-height: 92px; padding: 16px 18px; border-radius: 14px; background: var(--surface-2); display: grid; align-content: center; }
+    .savings-forecast-result span { color: var(--muted); font-size: 13px; }
+    .savings-forecast-result strong { display: block; margin-top: 5px; font-size: 26px; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+    .savings-forecast-result small { color: var(--muted); margin-top: 4px; }
+    .money-expression { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: start; }
+    .money-expression .hint, .money-expression .error-text { grid-column: 1 / -1; }
+    @media (max-width: 720px) { .savings-forecast { grid-template-columns: 1fr; } }
     .savings-history { display: grid; gap: 10px; }
     .savings-month-group { margin-top: 28px; }
     .savings-month-group:first-child { margin-top: 0; }
@@ -737,6 +745,10 @@
             <div class="savings-summary-card"><span>Отложено в выбранном месяце</span><strong id="savingsMonthTotal">0 ₽</strong></div>
             <div class="savings-summary-card"><span>Запланировано в выбранном месяце</span><strong id="savingsMonthPlanned">0 ₽</strong></div>
           </div>
+          <div class="savings-forecast">
+            <div class="field" style="margin:0"><label for="savingsForecastDate">Прогноз к дате</label><input id="savingsForecastDate" type="date"><span class="hint">Считаем фактически отложенное плюс запланированные и регулярные пополнения копилки до этой даты.</span></div>
+            <div class="savings-forecast-result"><span id="savingsForecastLabel">По плану к выбранной дате</span><strong id="savingsForecastTotal">0 ₽</strong><small id="savingsForecastDelta"></small></div>
+          </div>
           <div class="section">
             <div class="section-header"><div><h2>Поступления в копилку</h2><p>История по всем месяцам. Непроведённые операции показываются как план.</p></div></div>
             <div id="savingsHistory"></div>
@@ -808,7 +820,7 @@
         <div class="field full"><label for="txName">Название</label><input id="txName" name="name" autocomplete="off" required maxlength="80"><div class="error-text" data-error="name"></div></div>
         <div class="field"><label for="txDate">Дата</label><input id="txDate" name="date" type="date" required><div class="error-text" data-error="date"></div></div>
         <div class="field"><label for="txCategory">Категория</label><input id="txCategory" name="category" list="categoryList" autocomplete="off" maxlength="40"><datalist id="categoryList"><option value="Зарплата"><option value="Кредиты"><option value="Дом"><option value="Продукты"><option value="Транспорт"><option value="Дети"><option value="Личные расходы"><option value="Копилка"><option value="Накопления"><option value="Разовое"></datalist></div>
-        <div class="field"><label for="txPlan">План, ₽</label><input id="txPlan" name="plan" type="number" min="0" step="1" inputmode="decimal" required><div class="error-text" data-error="plan"></div></div>
+        <div class="field"><label for="txPlan">План, ₽</label><div class="money-expression"><input id="txPlan" name="plan" type="text" inputmode="text" autocomplete="off" required placeholder="Например: 2500+1800-300"><button class="button secondary small" type="button" id="calculatePlanExpression">Посчитать</button><span class="hint">Можно использовать +, −, ×, ÷ и скобки: 1200*3 или (5000+2500)/2.</span><div class="error-text" data-error="plan"></div></div></div>
         <div class="field"><label for="txActual">Факт, ₽</label><input id="txActual" name="actual" type="number" min="0" step="1" inputmode="decimal" placeholder="Если отличается"><span class="hint">Пусто — используется сумма по плану.</span></div>
         <div class="field full"><label class="checkline"><input id="txPaid" name="paid" type="checkbox">Операция уже проведена</label></div>
         <div class="field full"><label for="txNote">Комментарий</label><input id="txNote" name="note" maxlength="120" autocomplete="off"></div>
@@ -930,7 +942,7 @@
 
       function seedState() {
         const key=monthKeyFrom(realToday);
-        return { version:1, selectedMonth:key, activeView:'overview', filter:'all', recurring:[], recurringIncome:[], migrations:{}, months:{[key]:{openingBalance:0,transactions:[]}} };
+        return { version:1, selectedMonth:key, activeView:'overview', filter:'all', recurring:[], recurringIncome:[], savingsForecastDate:'', migrations:{}, months:{[key]:{openingBalance:0,transactions:[]}} };
       }
 
       function recurringDays(rule) {
@@ -1313,10 +1325,10 @@
       const sortTx = list => [...list].sort((a,b) => a.date.localeCompare(b.date) || (a.type === 'income' ? -1 : 1) || a.name.localeCompare(b.name));
 
       function persistLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-      function sharedState() { return { version:1, months:state.months, recurring:state.recurring||[], recurringIncome:state.recurringIncome||[], migrations:state.migrations||{} }; }
+      function sharedState() { return { version:1, months:state.months, recurring:state.recurring||[], recurringIncome:state.recurringIncome||[], savingsForecastDate:state.savingsForecastDate||'', migrations:state.migrations||{} }; }
       function mergeSharedState(remote) {
         if(!remote || remote.version!==1 || !remote.months || !Array.isArray(remote.recurring)) throw new Error('Некорректный формат данных в облаке');
-        state = { ...state, months:remote.months, recurring:remote.recurring, recurringIncome:Array.isArray(remote.recurringIncome)?remote.recurringIncome:[], migrations:remote.migrations||{} };
+        state = { ...state, months:remote.months, recurring:remote.recurring, recurringIncome:Array.isArray(remote.recurringIncome)?remote.recurringIncome:[], savingsForecastDate:remote.savingsForecastDate||state.savingsForecastDate||'', migrations:remote.migrations||{} };
         let changed=false;
         if(migrateLegacyMashaSalary(state))changed=true;
         if(ensureMashaSalaryV17(state))changed=true;
@@ -1469,6 +1481,58 @@
         return {entries,total,monthTotal,monthPlanned};
       }
 
+      function defaultSavingsForecastDate() {
+        const d=new Date(realToday.getFullYear(),realToday.getMonth()+3,realToday.getDate());
+        return localDateKey(d);
+      }
+
+      function savingsForecast(targetDateValue) {
+        const target=parseDate(targetDateValue);
+        target.setHours(23,59,59,999);
+        const todayKey=localDateKey(realToday);
+        let currentTotal=0,futurePlanned=0;
+
+        const allEntries=savingsEntries();
+        allEntries.forEach(({tx})=>{
+          const txDate=parseDate(tx.date);
+          if(tx.paid && txDate<=target) currentTotal+=amountOf(tx);
+          if(!tx.paid && tx.date>=todayKey && txDate<=target) futurePlanned+=Number(tx.plan||0);
+        });
+
+        const firstMonth=monthKeyFrom(realToday);
+        const targetMonth=monthKeyFrom(target);
+        let cursor=firstMonth;
+        while(cursor<=targetMonth){
+          const [year,mon]=cursor.split('-').map(Number),monthData=state.months[cursor];
+          const suppressed=new Set(monthData?.suppressedRecurringInstances||[]);
+          (state.recurring||[]).filter(r=>r.active && recurringSection(r.category)==='Копилка' && (!r.startMonth||r.startMonth<=cursor)).forEach(r=>{
+            recurringDays(r).forEach(day=>{
+              const txDate=iso(year,mon,Math.min(day,new Date(year,mon,0).getDate()));
+              if(txDate<todayKey || parseDate(txDate)>target)return;
+              const exists=(monthData?.transactions||[]).some(t=>t.recurringId===r.id&&Number(t.recurringDay||parseDate(t.date).getDate())===day);
+              if(exists)return;
+              if(suppressed.has(recurringInstanceKey(r.id,day)))return;
+              futurePlanned+=Number(r.amount||0);
+            });
+          });
+          cursor=adjacentMonthKey(cursor,1);
+        }
+        return {currentTotal,futurePlanned,total:currentTotal+futurePlanned};
+      }
+
+      function renderSavingsForecast() {
+        const input=$('#savingsForecastDate'); if(!input)return;
+        const value=state.savingsForecastDate||defaultSavingsForecastDate();
+        input.min=localDateKey(realToday); input.value=value;
+        const forecast=savingsForecast(value);
+        const dateLabel=fullDate.format(parseDate(value))+' '+parseDate(value).getFullYear();
+        $('#savingsForecastLabel').textContent=`По плану к ${dateLabel}`;
+        $('#savingsForecastTotal').textContent=formatMoney(forecast.total);
+        $('#savingsForecastDelta').textContent=forecast.futurePlanned>0
+          ? `Ещё планируется добавить ${formatMoney(forecast.futurePlanned)}.`
+          : 'До этой даты новых пополнений по плану нет.';
+      }
+
       function renderSavingsWidget() {
         const totalEl=$('#savingsWidgetTotal'); if(!totalEl)return;
         const s=savingsSummary();
@@ -1482,6 +1546,7 @@
         $('#savingsTotal').textContent=formatMoney(s.total);
         $('#savingsMonthTotal').textContent=formatMoney(s.monthTotal);
         $('#savingsMonthPlanned').textContent=formatMoney(s.monthPlanned);
+        renderSavingsForecast();
         const history=$('#savingsHistory');
         if(!s.entries.length){
           history.innerHTML='<div class="panel empty"><strong>Копилка пока пуста</strong>Добавьте расход с категорией «Копилка» — проведённая сумма появится здесь.</div>';
@@ -2029,9 +2094,59 @@
       function clearErrors(form){$$('.error-text',form).forEach(e=>e.textContent='');}
       function setError(form,name,text){const el=$(`[data-error="${name}"]`,form);if(el)el.textContent=text;form.elements[name]?.focus();}
 
+      function calculateMoneyExpression(value) {
+        const source=String(value??'').replace(/\s+/g,'').replace(/,/g,'.').replace(/[×хХ]/g,'*').replace(/[÷:]/g,'/');
+        if(!source)return NaN;
+        let i=0;
+        const peek=()=>source[i]||'';
+        const parseNumber=()=>{
+          const start=i;
+          while(/[0-9.]/.test(peek()))i++;
+          if(start===i)return NaN;
+          const token=source.slice(start,i);
+          if((token.match(/\./g)||[]).length>1)return NaN;
+          return Number(token);
+        };
+        const parseFactor=()=>{
+          if(peek()==='+'){i++;return parseFactor();}
+          if(peek()==='-'){i++;const v=parseFactor();return Number.isFinite(v)?-v:NaN;}
+          if(peek()==='('){i++;const v=parseExpression();if(peek()!==')')return NaN;i++;return v;}
+          return parseNumber();
+        };
+        const parseTerm=()=>{
+          let value=parseFactor();
+          while(Number.isFinite(value)&&(peek()==='*'||peek()==='/')){
+            const op=source[i++],right=parseFactor();
+            if(!Number.isFinite(right)||(op==='/'&&right===0))return NaN;
+            value=op==='*'?value*right:value/right;
+          }
+          return value;
+        };
+        const parseExpression=()=>{
+          let value=parseTerm();
+          while(Number.isFinite(value)&&(peek()==='+'||peek()==='-')){
+            const op=source[i++],right=parseTerm();
+            if(!Number.isFinite(right))return NaN;
+            value=op==='+'?value+right:value-right;
+          }
+          return value;
+        };
+        const result=parseExpression();
+        return i===source.length&&Number.isFinite(result)?Math.round(result*100)/100:NaN;
+      }
+
+      function calculatePlanField() {
+        const form=$('#transactionForm'),input=form.elements.plan;
+        const result=calculateMoneyExpression(input.value);
+        if(!Number.isFinite(result)||result<0){setError(form,'plan','Проверьте выражение. Можно использовать числа, +, −, ×, ÷ и скобки.');return null;}
+        input.value=String(result);
+        const error=$('[data-error="plan"]',form); if(error)error.textContent='';
+        return result;
+      }
+
       function submitTransaction(event) {
         event.preventDefault(); const form=event.currentTarget, fd=new FormData(form); clearErrors(form);
-        const name=String(fd.get('name')||'').trim(), date=String(fd.get('date')||''), plan=Number(fd.get('plan'));
+        const name=String(fd.get('name')||'').trim(), date=String(fd.get('date')||''), plan=calculateMoneyExpression(fd.get('plan'));
         const targetMonth=date.slice(0,7),nextMonth=adjacentMonthKey(state.selectedMonth,1);
         if(!name){setError(form,'name','Введите название.');return;}
         if(!date||(!transactionPeriod&&targetMonth!==state.selectedMonth&&targetMonth!==nextMonth)){setError(form,'date','Выберите дату в текущем или следующем месяце.');return;}
@@ -2334,6 +2449,8 @@
       $('#privateTransactionForm').addEventListener('submit',submitPrivateTransaction);
       $('#deletePrivateTransaction').addEventListener('click',deletePrivateTransaction);
       $('#addSavings').addEventListener('click',openSavingsTransaction);
+      $('#calculatePlanExpression').addEventListener('click',calculatePlanField);
+      $('#savingsForecastDate').addEventListener('change',e=>{state.savingsForecastDate=e.target.value||'';save();renderSavingsForecast();});
       $('#quickExpense').addEventListener('click',()=>openTransaction('expense')); $('#quickIncome').addEventListener('click',()=>openTransaction('income')); $('#addTransaction').addEventListener('click',()=>openTransaction('expense')); $('#addRecurring').addEventListener('click',()=>openRecurring()); $('#addRecurringIncome').addEventListener('click',()=>openRecurringIncome());
       $('#setBaseline').addEventListener('click',openBaseline); $('#transactionForm').addEventListener('submit',submitTransaction); $('#recurringForm').addEventListener('submit',submitRecurring); $('#recurringIncomeForm').addEventListener('submit',submitRecurringIncome); $('#calculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#recalculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#baselineForm').addEventListener('submit',submitBaseline); $('#moveForm').addEventListener('submit',submitMove); $('#deleteTransaction').addEventListener('click',deleteTransaction); $('#deleteRecurring').addEventListener('click',deleteRecurring); $('#deleteRecurringIncome').addEventListener('click',deleteRecurringIncome); $('#clearBaseline').addEventListener('click',clearBaseline);
       $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('click',()=>$('#importFile').click()); $('#importFile').addEventListener('change',e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value='';}); $('#resetData').addEventListener('click',resetData);
