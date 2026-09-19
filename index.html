@@ -1,0 +1,1765 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Семейный бюджет Степановых</title>
+  <style>
+    :root {
+      --canvas: #f3f1eb;
+      --surface: #fffefa;
+      --surface-2: #f8f7f1;
+      --text: #17221d;
+      --muted: #66716b;
+      --border: #dce1da;
+      --accent: #1f6b4f;
+      --accent-hover: #18553f;
+      --accent-soft: #dfeee6;
+      --ink-soft: #32423a;
+      --income: #16754e;
+      --income-soft: #e2f2e9;
+      --expense: #b64a3a;
+      --expense-soft: #f8e7e3;
+      --warning: #956815;
+      --warning-soft: #f6edcf;
+      --focus: #175cd3;
+      --shadow: 0 12px 32px rgba(30, 51, 41, .08);
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --sidebar: 244px;
+      --font: "Segoe UI", Inter, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100dvh;
+      background: var(--canvas);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    button, input, select { font: inherit; }
+    button, [role="button"] { touch-action: manipulation; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 32%, transparent);
+      outline-offset: 2px;
+    }
+    .skip-link { position: fixed; top: 8px; left: 8px; z-index: 200; transform: translateY(-150%); background: var(--text); color: white; padding: 10px 14px; border-radius: 8px; }
+    .skip-link:focus { transform: none; }
+    .icon { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+    .app { min-height: 100dvh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+
+    .sidebar {
+      position: sticky; top: 0; height: 100dvh; padding: 28px 20px;
+      border-right: 1px solid var(--border); background: #ebe9e1;
+      display: flex; flex-direction: column; gap: 30px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: #fff; }
+    .brand strong { display: block; font-size: 17px; line-height: 1.15; }
+    .brand small { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .nav { display: grid; gap: 6px; }
+    .nav-button {
+      min-height: 46px; width: 100%; border: 0; background: transparent; color: var(--ink-soft);
+      border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 11px; text-align: left; font-weight: 600;
+      transition: background .18s ease, color .18s ease;
+    }
+    .nav-button:hover { background: rgba(255,255,255,.55); }
+    .nav-button.active { background: var(--surface); color: var(--accent); box-shadow: 0 4px 18px rgba(33, 52, 43, .06); }
+    .sidebar-note { margin-top: auto; color: var(--muted); font-size: 13px; display: flex; gap: 9px; align-items: flex-start; }
+
+    .workspace { min-width: 0; }
+    .topbar {
+      min-height: 82px; padding: 16px clamp(18px, 3vw, 44px); display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--canvas) 92%, transparent); position: sticky; top: 0; z-index: 30;
+      backdrop-filter: blur(10px);
+    }
+    .month-control { display: flex; align-items: center; gap: 8px; }
+    .icon-button { width: 44px; height: 44px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 12px; display: grid; place-items: center; transition: border .18s, background .18s; }
+    .icon-button:hover { border-color: #b6c2ba; background: #fff; }
+    .month-label { min-width: 180px; text-align: center; }
+    .month-label strong { display: block; font-size: 18px; text-transform: capitalize; }
+    .month-label span { color: var(--muted); font-size: 13px; }
+    .top-actions { display: flex; gap: 10px; align-items: center; }
+    .button {
+      min-height: 44px; border-radius: 12px; border: 1px solid transparent; padding: 10px 16px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-weight: 700;
+      transition: background .18s ease, color .18s ease, border-color .18s ease, transform .08s ease;
+    }
+    .button:active, .icon-button:active { transform: translateY(1px); }
+    .button.primary { background: var(--accent); color: #fff; }
+    .button.primary:hover { background: var(--accent-hover); }
+    .button.secondary { background: var(--surface); border-color: var(--border); color: var(--text); }
+    .button.secondary:hover { border-color: #aebbb3; }
+    .button.ghost { background: transparent; color: var(--ink-soft); }
+    .button.danger { background: var(--expense-soft); color: #872f24; }
+    .button.small { min-height: 38px; padding: 7px 12px; font-size: 14px; }
+    .button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+    main { padding: 34px clamp(18px, 3vw, 44px) 64px; max-width: 1440px; margin: 0 auto; }
+    .view[hidden] { display: none !important; }
+    .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
+    .page-heading h1 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.035em; line-height: 1.08; }
+    .page-heading p { margin: 7px 0 0; color: var(--muted); max-width: 680px; }
+    .page-heading-actions { display: flex; align-items: center; gap: 10px; }
+
+    .summary {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); overflow: hidden;
+      display: grid; grid-template-columns: minmax(280px, 1.25fr) minmax(420px, 1fr);
+    }
+    .balance-panel { padding: clamp(24px, 4vw, 40px); background: var(--accent); color: #fff; position: relative; overflow: hidden; }
+    .balance-panel::after { content: ""; position: absolute; right: -64px; bottom: -100px; width: 240px; height: 240px; border: 36px solid rgba(255,255,255,.08); border-radius: 50%; }
+    .eyebrow { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; opacity: .78; }
+    .big-money { font-size: clamp(36px, 5vw, 62px); font-weight: 750; letter-spacing: -.055em; line-height: 1.05; margin: 10px 0 16px; font-variant-numeric: tabular-nums; }
+    .balance-note { max-width: 440px; color: rgba(255,255,255,.82); margin: 0; }
+    .balance-settings { position: relative; z-index: 1; margin-top: 20px; }
+    .button.on-dark { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.34); color: #fff; }
+    .button.on-dark:hover { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.56); }
+    .summary-metrics { padding: 10px clamp(22px, 3vw, 36px); display: grid; align-content: center; }
+    .metric { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 16px; padding: 17px 0; border-bottom: 1px solid var(--border); }
+    .metric:last-child { border: 0; }
+    .metric span { color: var(--muted); }
+    .metric strong { font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric strong.negative { color: var(--expense); }
+
+    .section { margin-top: 36px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
+    .section-header h2 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+    .section-header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+    .periods { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; overflow-x: auto; padding: 2px 2px 10px; scroll-snap-type: x proximity; }
+    .period { scroll-snap-align: start; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px; min-height: 170px; display: flex; flex-direction: column; }
+    .period.current { border-color: #75a58d; box-shadow: 0 0 0 3px rgba(31,107,79,.1); }
+    .period .period-top { display: flex; justify-content: space-between; gap: 12px; }
+    .period .period-dates { font-weight: 750; }
+    .period .period-badge { color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: 7px; font-size: 12px; font-weight: 800; height: fit-content; }
+    .period .period-balance { font-size: 25px; font-weight: 760; margin-top: auto; font-variant-numeric: tabular-nums; }
+    .period .period-balance.negative { color: var(--expense); }
+    .period .period-meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    .ledger { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+    .period-ledger-list { display: grid; gap: 18px; }
+    .period-group { min-width: 0; }
+    .period-group-heading {
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+      margin: 0 4px 8px; padding-top: 4px;
+    }
+    .period-group-heading h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
+    .period-group-heading p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+    .period-group-heading .income-label { color: var(--income); font-size: 14px; font-weight: 750; white-space: nowrap; }
+    .period-heading-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+    .period-heading-buttons { display: flex; gap: 6px; }
+    .button.danger-text { background: transparent; color: #9a382d; }
+    .button.danger-text:hover { background: var(--expense-soft); }
+    .period-subtotal {
+      display: grid; grid-template-columns: repeat(3, auto); justify-content: end; gap: 20px;
+      padding: 14px 16px; background: #edf3ef; border: 1px solid #cfddd5; border-top: 0;
+      border-radius: 0 0 var(--radius-md) var(--radius-md); color: var(--ink-soft);
+    }
+    .period-group .ledger { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+    .period-subtotal span { font-size: 13px; }
+    .period-subtotal strong { display: block; color: var(--text); font-size: 18px; font-variant-numeric: tabular-nums; }
+    .period-subtotal .period-ending strong { color: var(--accent); font-size: 21px; }
+    .period-subtotal .period-ending strong.negative { color: var(--expense); }
+    .period-ending-actions { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+    .period-ending-actions small { color: var(--muted); font-size: 11px; }
+    .period-actual-button { min-height: 30px; padding: 4px 10px; font-size: 12px; font-weight: 700; border-radius: 999px; border: 1px solid #aacdc2; background: rgba(255,255,255,.72); color: #0d6e52; cursor: pointer; }
+    .period-actual-button:hover { background: #fff; border-color: #6ba893; }
+    .period-actual-value { color: #0d6e52; font-weight: 800; }
+    .ledger-row { display: grid; grid-template-columns: 92px minmax(180px, 1.4fr) minmax(120px, .7fr) 140px 120px 214px; gap: 12px; align-items: center; min-height: 68px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+    .ledger-row:last-child { border-bottom: 0; }
+    .ledger-row.header { min-height: 46px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .ledger-row.overdue { background: linear-gradient(90deg, var(--expense-soft), transparent 30%); }
+    .ledger-title { min-width: 0; }
+    .ledger-title strong { display: block; overflow-wrap: anywhere; }
+    .ledger-title small { color: var(--muted); }
+    .money { font-variant-numeric: tabular-nums; font-weight: 750; white-space: nowrap; }
+    .money.income { color: var(--income); }
+    .money.expense { color: var(--expense); }
+    .status { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; width: fit-content; padding: 4px 9px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+    .status.paid { color: var(--income); background: var(--income-soft); }
+    .status.planned { color: var(--warning); background: var(--warning-soft); }
+    .status.overdue { color: var(--expense); background: var(--expense-soft); }
+    .row-actions { display: flex; justify-content: flex-end; gap: 4px; }
+    .row-actions .icon-button { width: 40px; height: 40px; border: 0; background: transparent; }
+    .row-actions .icon-button:hover { background: var(--surface-2); }
+    .draggable-expense { cursor: grab; }
+    .draggable-expense:active { cursor: grabbing; }
+    .draggable-expense.dragging { opacity: .45; }
+    .period-group.drop-target { outline: 3px solid var(--text); outline-offset: 5px; border-radius: 26px; background: var(--accent-soft); }
+    .pay-button { min-width: 116px; }
+    .live-balance-bar {
+      position: sticky; top: 94px; z-index: 20; margin-bottom: 12px; padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      background: #183f31; color: #fff; border-radius: 14px; box-shadow: 0 10px 28px rgba(23, 50, 39, .18);
+    }
+    .live-balance-main { display: flex; align-items: baseline; gap: 12px; }
+    .live-balance-main span { color: rgba(255,255,255,.76); font-size: 14px; }
+    .live-balance-main strong { font-size: 25px; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
+    .live-balance-forecast { color: rgba(255,255,255,.76); font-size: 14px; text-align: right; }
+    .live-balance-forecast strong { color: #fff; font-size: 17px; margin-left: 7px; font-variant-numeric: tabular-nums; }
+
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { min-height: 40px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); border-radius: 10px; padding: 7px 12px; font-weight: 700; }
+    .chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .calendar-panel { margin: 18px 0 30px; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 22px; }
+    .calendar-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 16px; }
+    .calendar-heading h2 { margin: 0 0 4px; font-size: 24px; }
+    .calendar-heading p { margin: 0; color: var(--muted); font-size: 14px; }
+    .calendar-legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 12px; }
+    .calendar-legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: var(--muted); }
+    .calendar-legend .income-key::before { background: var(--income); }
+    .calendar-legend .expense-key::before { background: var(--expense); }
+    .calendar-scroll { overflow-x: auto; padding-bottom: 4px; }
+    .calendar-grid { min-width: 840px; display: grid; grid-template-columns: repeat(7, minmax(112px, 1fr)); gap: 7px; }
+    .calendar-weekday { padding: 0 8px 5px; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+    .calendar-day, .calendar-empty { min-height: 116px; border-radius: 16px; }
+    .calendar-empty { background: #f7f8f5; }
+    .calendar-day { border: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; background: #fff; }
+    .calendar-day.has-income { background: linear-gradient(145deg, #efffb1 0, #fff 58%); }
+    .calendar-day.today { outline: 2px solid var(--text); outline-offset: -2px; }
+    .calendar-date { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-weight: 800; }
+    .calendar-date small { color: var(--muted); font-size: 10px; font-weight: 700; }
+    .calendar-flow { display: grid; gap: 3px; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .calendar-flow .income { color: var(--income); }
+    .calendar-flow .expense { color: var(--expense); }
+    .calendar-balance { margin-top: auto; padding-top: 9px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; }
+    .calendar-balance strong { display: block; margin-top: 2px; color: var(--text); font-size: 13px; }
+    .calendar-balance strong.negative { color: var(--expense); }
+    .empty { padding: 50px 20px; text-align: center; color: var(--muted); }
+    .empty strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 5px; }
+
+    .recurring-total { display: flex; align-items: baseline; gap: 9px; padding: 12px 16px; border-radius: 18px; background: var(--accent); white-space: nowrap; }
+    .recurring-total span { color: var(--ink-soft); font-size: 12px; }
+    .recurring-total strong { font-size: 20px; }
+    .recurring-sections { display: grid; gap: 10px; }
+    .recurring-section { overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
+    .recurring-section-summary { min-height: 72px; padding: 14px 18px; display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; gap: 13px; align-items: center; cursor: pointer; list-style: none; }
+    .recurring-section-summary::-webkit-details-marker { display: none; }
+    .recurring-section-summary:hover { background: #f7f8f5; }
+    .recurring-section-summary:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+    .recurring-section-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 13px; background: #efffb1; }
+    .recurring-section-title strong { display: block; font-size: 17px; }
+    .recurring-section-title span { color: var(--muted); font-size: 12px; }
+    .recurring-section-amount { text-align: right; }
+    .recurring-section-amount strong { display: block; font-size: 17px; }
+    .recurring-section-amount span { color: var(--muted); font-size: 11px; }
+    .recurring-chevron { transition: transform .18s ease; }
+    .recurring-section[open] .recurring-chevron { transform: rotate(90deg); }
+    .recurring-grid { display: grid; border-top: 1px solid var(--border); }
+    .recurring-item { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 18px; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+    .recurring-item:last-child { border-bottom: 0; }
+    .recurring-item.is-inactive { opacity: .52; }
+    .date-box { min-width: 52px; min-height: 46px; padding: 6px 8px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; text-align: center; font-size: 11px; color: var(--muted); line-height: 1.1; }
+    .date-box strong { display: block; color: var(--text); font-size: 17px; }
+    .recurring-item h3 { margin: 0; font-size: 16px; }
+    .recurring-item p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+    .recurring-side { text-align: right; }
+    .recurring-side .money { display: block; }
+    .recurring-side small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 26px; margin-top: 8px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch span { position: absolute; inset: 0; background: #c8cec9; border-radius: 999px; transition: .18s; }
+    .switch span::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; border-radius: 50%; background: white; box-shadow: 0 1px 4px rgba(0,0,0,.2); transition: .18s; }
+    .switch input:checked + span { background: var(--accent); }
+    .switch input:checked + span::before { transform: translateX(18px); }
+
+    .backup-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .6fr); gap: 16px; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 24px; }
+    .panel h2 { margin: 0 0 8px; font-size: 20px; }
+    .panel p { color: var(--muted); margin: 0 0 20px; }
+    .backup-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .privacy-note { display: flex; gap: 12px; align-items: flex-start; background: var(--accent-soft); color: #24513f; border: 0; }
+
+    dialog { width: min(680px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); border: 0; border-radius: var(--radius-lg); padding: 0; color: var(--text); background: var(--surface); box-shadow: 0 24px 80px rgba(22,35,28,.3); }
+    dialog::backdrop { background: rgba(21, 32, 27, .55); }
+    .dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px 16px; border-bottom: 1px solid var(--border); }
+    .dialog-header h2 { margin: 0; font-size: 21px; }
+    .dialog-body { padding: 22px 24px; overflow: auto; max-height: calc(100dvh - 180px); }
+    .dialog-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 24px 22px; border-top: 1px solid var(--border); }
+    .dialog-footer-right { display: flex; gap: 10px; margin-left: auto; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+    .field { display: grid; gap: 7px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label, fieldset legend { font-size: 14px; font-weight: 750; }
+    .field input, .field select { width: 100%; min-height: 46px; border: 1px solid #bcc6c0; background: #fff; color: var(--text); border-radius: 10px; padding: 10px 12px; }
+    .field input:hover, .field select:hover { border-color: #8fa097; }
+    .field .hint { color: var(--muted); font-size: 12px; }
+    .type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .type-toggle label { position: relative; }
+    .type-toggle input { position: absolute; opacity: 0; }
+    .type-toggle span { min-height: 46px; border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 750; }
+    .type-toggle input:checked + span { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+    .checkline { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+    .checkline input { width: 20px; height: 20px; accent-color: var(--accent); }
+    .error-text { min-height: 18px; color: var(--expense); font-size: 13px; }
+
+    .toast { position: fixed; z-index: 300; right: 20px; bottom: 20px; max-width: min(420px, calc(100vw - 40px)); background: #1d2a24; color: #fff; border-radius: 12px; padding: 13px 16px; box-shadow: 0 14px 42px rgba(0,0,0,.22); transform: translateY(140%); opacity: 0; transition: transform .22s ease, opacity .22s ease; }
+    .toast.show { transform: none; opacity: 1; }
+
+    .mobile-nav { display: none; }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .summary { grid-template-columns: 1fr; }
+      .topbar { top: 58px; min-height: 72px; }
+      .live-balance-bar { top: 142px; }
+      .mobile-nav { display: flex; position: sticky; top: 0; z-index: 40; height: 58px; overflow-x: auto; background: #ebe9e1; border-bottom: 1px solid var(--border); padding: 7px 10px; gap: 5px; }
+      .mobile-nav .nav-button { width: auto; min-width: max-content; min-height: 44px; padding: 8px 12px; }
+      .mobile-nav .nav-button .icon { width: 18px; height: 18px; }
+      .recurring-grid { grid-template-columns: 1fr; }
+      .backup-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .topbar { align-items: stretch; flex-direction: column; padding: 12px 16px; }
+      .month-control { justify-content: space-between; }
+      .month-label { min-width: 0; }
+      .top-actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .top-actions .button { width: 100%; }
+      main { padding-top: 24px; }
+      .page-heading { align-items: flex-start; flex-direction: column; }
+      .page-heading .button { width: 100%; }
+      .page-heading-actions { width: 100%; flex-direction: column; align-items: stretch; }
+      .recurring-total { justify-content: space-between; }
+      .recurring-section-summary { grid-template-columns: minmax(0,1fr) auto auto; padding: 12px 14px; }
+      .recurring-section-icon { display: none; }
+      .recurring-section-amount strong { font-size: 15px; }
+      .balance-panel { min-height: 250px; }
+      .ledger-row { grid-template-columns: 72px minmax(0,1fr) auto; padding: 13px 12px; gap: 10px; }
+      .ledger-row.header { display: none; }
+      .ledger-row > :nth-child(3), .ledger-row > :nth-child(5) { display: none; }
+      .ledger-row > :nth-child(4) { grid-column: 3; grid-row: 1; }
+      .ledger-row > :nth-child(6) { grid-column: 3; grid-row: 2; }
+      .pay-button { min-width: 108px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .dialog-footer { align-items: stretch; flex-direction: column-reverse; }
+      .dialog-footer-right { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+      .dialog-footer .danger { width: 100%; }
+    }
+    @media (max-width: 420px) {
+      .nav-button span { font-size: 14px; }
+      .top-actions { grid-template-columns: 1fr; }
+      .big-money { font-size: 38px; }
+      .summary-metrics { padding-inline: 20px; }
+      .metric strong { font-size: 19px; }
+      .recurring-item { grid-template-columns: auto minmax(0,1fr); }
+      .recurring-side { grid-column: 2; text-align: left; display: flex; align-items: center; justify-content: space-between; }
+      .live-balance-bar { align-items: flex-start; flex-direction: column; gap: 4px; }
+      .live-balance-forecast { text-align: left; }
+      .period-group-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
+      .period-heading-actions { width: 100%; justify-content: space-between; }
+      .period-heading-buttons { flex-wrap: wrap; justify-content: flex-end; }
+      .period-subtotal { grid-template-columns: 1fr 1fr; justify-content: stretch; gap: 10px; }
+      .period-subtotal .period-ending { grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid #cfddd5; }
+    }
+
+    /* Visual direction: editorial eco minimalism from the supplied reference. */
+    :root {
+      --canvas: #e9ebe8;
+      --surface: #ffffff;
+      --surface-2: #f3f4f1;
+      --text: #111411;
+      --muted: #626a65;
+      --border: #d9ded9;
+      --accent: #dfff45;
+      --accent-hover: #d3f52d;
+      --accent-soft: #efffb1;
+      --ink-soft: #303632;
+      --income: #08744c;
+      --income-soft: #dff4e9;
+      --expense: #c34632;
+      --expense-soft: #fae7e1;
+      --warning: #8c6410;
+      --warning-soft: #fff3bf;
+      --focus: #111411;
+      --shadow: 0 18px 50px rgba(25, 31, 27, .08);
+      --radius-sm: 14px;
+      --radius-md: 24px;
+      --radius-lg: 34px;
+      --font: Arial, "Segoe UI", sans-serif;
+    }
+    body { background: var(--canvas); color: var(--text); letter-spacing: -.01em; padding: 18px; }
+    .app {
+      display: block; max-width: 1520px; min-height: calc(100dvh - 36px); margin: 0 auto;
+      background: #fbfcf9; border: 1px solid #cfd5d0; border-radius: 30px; overflow: clip;
+      box-shadow: 0 8px 30px rgba(28, 35, 31, .06);
+    }
+    .sidebar {
+      position: sticky; top: 0; z-index: 60; width: 100%; height: 78px; padding: 14px 24px;
+      flex-direction: row; align-items: center; gap: 28px; background: rgba(251,252,249,.96);
+      border-right: 0; border-bottom: 1px solid var(--border); backdrop-filter: blur(12px);
+    }
+    .brand { min-width: max-content; }
+    .brand-mark { background: var(--text); color: var(--accent); border-radius: 50%; }
+    .brand strong { font-size: 16px; }
+    .brand small { color: var(--muted); }
+    .nav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+    .nav-button { width: auto; min-height: 44px; padding: 9px 14px; border-radius: 999px; color: var(--text); font-size: 14px; }
+    .nav-button:hover { background: var(--surface-2); }
+    .nav-button.active { background: var(--accent); color: var(--text); box-shadow: none; }
+    .sidebar-note { display: none; }
+    .workspace { background: #fbfcf9; }
+    .topbar {
+      top: 78px; min-height: 84px; padding: 16px clamp(22px, 4vw, 60px);
+      background: rgba(251,252,249,.94); border-color: var(--border); backdrop-filter: blur(12px);
+    }
+    .month-label strong { font-size: 19px; font-weight: 700; }
+    .icon-button { border-color: var(--border); background: var(--surface); border-radius: 50%; color: var(--text); }
+    .button { border-radius: 999px; padding-inline: 18px; }
+    .button.primary { background: #173d30; color: #fff; }
+    .button.primary:hover { background: #0d2e23; }
+    .button.secondary { background: #fff; border-color: var(--border); color: var(--text); }
+    .button.secondary:hover { border-color: #aeb7b0; background: var(--surface-2); }
+    .button.secondary.unmark { color: #8f382c; border-color: #e8c7bf; background: #fff8f5; }
+    .button.secondary.unmark:hover { background: var(--expense-soft); border-color: #dca99e; }
+    .button.on-dark { background: var(--text); border-color: var(--text); color: #fff; }
+    .button.on-dark:hover { background: #313631; border-color: #313631; }
+    main { max-width: 1360px; padding: 48px clamp(22px, 4vw, 60px) 80px; }
+    .page-heading { margin-bottom: 30px; }
+    .page-heading h1 { font-size: clamp(34px, 5vw, 64px); font-weight: 600; letter-spacing: -.055em; }
+    .page-heading p { font-size: 16px; max-width: 620px; }
+    .summary { border: 0; border-radius: 34px; box-shadow: none; gap: 10px; background: transparent; }
+    .balance-panel { min-height: 320px; background: var(--accent); color: var(--text); border-radius: 34px; padding: clamp(28px, 5vw, 54px); }
+    .balance-panel::after { right: -74px; bottom: -126px; width: 310px; height: 310px; border-color: rgba(17,20,17,.08); }
+    .balance-panel .eyebrow { opacity: .64; }
+    .big-money { font-size: clamp(48px, 7vw, 86px); font-weight: 600; }
+    .balance-note { color: rgba(17,20,17,.72); max-width: 520px; }
+    .summary-metrics { border-radius: 34px; background: #dff3f5; padding: 24px clamp(24px, 4vw, 44px); }
+    .metric { padding: 22px 0; border-color: rgba(17,20,17,.13); }
+    .metric strong { font-size: 26px; font-weight: 600; }
+    .section { margin-top: 52px; }
+    .section-header h2 { font-size: 27px; font-weight: 600; letter-spacing: -.035em; }
+    .periods { gap: 14px; }
+    .period { min-height: 200px; border: 0; border-radius: 28px; padding: 22px; background: #f0f1ef; }
+    .period:nth-child(3n+1) { background: var(--accent-soft); }
+    .period:nth-child(3n+2) { background: #dff3f5; }
+    .period.current { border: 2px solid var(--text); box-shadow: none; }
+    .period .period-badge { background: var(--text); color: #fff; border-radius: 999px; }
+    .period .period-balance { font-size: 30px; font-weight: 600; }
+    .live-balance-bar { top: 176px; background: var(--accent); color: var(--text); border-radius: 22px; box-shadow: 0 12px 28px rgba(25,31,27,.12); }
+    .live-balance-main span, .live-balance-forecast { color: rgba(17,20,17,.67); }
+    .live-balance-forecast strong { color: var(--text); }
+    .ledger { border-color: var(--border); border-radius: 24px; background: var(--surface); }
+    .ledger-row { min-height: 78px; padding: 13px 20px; border-color: var(--border); }
+    .ledger-row.header { min-height: 52px; background: #f6f7f4; color: #59615c; letter-spacing: .07em; }
+    .ledger-row.overdue { background: linear-gradient(90deg, #fff0eb 0, #fff 38%); }
+    .status { border-radius: 999px; padding: 6px 11px; }
+    .status.paid { background: var(--income-soft); }
+    .status.overdue { background: var(--expense-soft); }
+    .pay-button { min-width: 126px; }
+    .period-group { padding-top: 8px; }
+    .period-group-heading { margin: 0 8px 12px; }
+    .period-group-heading h2 { font-size: 24px; font-weight: 600; }
+    .period-group-heading .income-label { color: var(--income); }
+    .period-subtotal { background: #dff3f5; border-color: #c5e3e7; border-radius: 0 0 24px 24px; padding: 20px 22px; }
+    .period-group .ledger { border-radius: 24px 24px 0 0; }
+    .period-subtotal .period-ending strong { color: #0d6e52; }
+    .chip { border-radius: 999px; background: #fff; }
+    .chip.active { background: var(--accent); color: var(--text); border-color: var(--text); }
+    .recurring-item { border-radius: 0; background: #fff; }
+    .date-box { background: #fff; border-radius: 18px; color: var(--muted); }
+    .panel { border: 0; border-radius: 28px; background: #f0f1ef; padding: 30px; }
+    .privacy-note { background: #dff3f5; color: var(--text); }
+    dialog { border-radius: 30px; background: #fbfcf9; }
+    .dialog-header, .dialog-footer { border-color: var(--border); }
+    .field input, .field select { min-height: 50px; border-radius: 16px; border-color: var(--border); background: #fff; }
+    .type-toggle span { border-radius: 16px; }
+    .type-toggle input:checked + span { background: var(--accent); border-color: var(--text); color: var(--text); }
+    .toast { background: var(--text); border-radius: 18px; }
+
+    @media (max-width: 980px) {
+      body { padding: 0; }
+      .app { min-height: 100dvh; border: 0; border-radius: 0; }
+      .sidebar { display: none; }
+      .mobile-nav { display: flex; background: rgba(251,252,249,.97); border-color: var(--border); }
+      .mobile-nav .nav-button.active { background: var(--accent); color: var(--text); }
+      .topbar { top: 58px; }
+      .live-balance-bar { top: 142px; }
+    }
+    @media (max-width: 720px) {
+      main { padding-top: 30px; }
+      .page-heading h1 { font-size: 40px; }
+      .balance-panel { min-height: 280px; }
+      .ledger-row { min-height: 76px; }
+      .button.secondary.unmark { min-width: 116px; }
+      .ledger-row > :nth-child(6) { grid-column: 1 / -1; grid-row: 3; justify-content: flex-start; }
+    }
+    @media (max-width: 420px) {
+      .page-heading h1 { font-size: 36px; }
+      .period-heading-actions { align-items: flex-start; flex-direction: column; }
+      .period-heading-buttons { justify-content: flex-start; }
+    }
+
+    .period-group { border-radius: 24px; }
+    .period-group > details { border-radius: 24px; }
+    .period-group-summary {
+      list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0,1fr) auto auto auto auto;
+      gap: 18px; align-items: center; padding: 18px 22px; background: #fff; border: 1px solid var(--border);
+      border-radius: 24px;
+    }
+    .period-group-summary::-webkit-details-marker { display: none; }
+    .period-group[open] .period-group-summary { border-radius: 24px 24px 0 0; border-bottom-color: transparent; }
+    .period-summary-main h2 { margin: 0; font-size: 22px; font-weight: 600; }
+    .period-summary-main p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+    .period-summary-metric { text-align: right; white-space: nowrap; }
+    .period-summary-metric span { display: block; color: var(--muted); font-size: 12px; }
+    .period-summary-metric strong { display: block; margin-top: 2px; font-size: 17px; }
+    .period-summary-metric.ending strong { color: #0d6e52; font-size: 19px; }
+    .period-summary-metric.ending strong.negative { color: var(--expense); }
+    .period-summary-chevron { transition: transform .18s ease; }
+    .period-group[open] .period-summary-chevron { transform: rotate(90deg); }
+    .period-group-body { border: 1px solid var(--border); border-top: 0; border-radius: 0 0 24px 24px; overflow: hidden; background: #fff; }
+    .period-group-body .period-group-heading { padding: 14px 18px 10px; margin: 0; background: #fbfcf9; border-bottom: 1px solid var(--border); }
+    .period-group-body .ledger { border: 0; border-radius: 0; }
+    .period-group-body .period-subtotal { border: 0; border-top: 1px solid #c5e3e7; border-radius: 0; }
+
+    .next-month-preview { margin-top: 34px; }
+    .next-month-card { background: #f0f1ef; border-radius: 24px; padding: 20px; }
+    .next-month-card .section-header { margin-bottom: 14px; }
+    .next-month-card .ledger { background: #fff; }
+    .next-month-note { color: var(--muted); font-size: 13px; margin-top: 10px; }
+
+    @media (max-width: 900px) {
+      .period-group-summary { grid-template-columns: minmax(0,1fr) auto; }
+      .period-summary-metric { display: none; }
+      .period-summary-chevron { grid-column: 2; grid-row: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+    @media (prefers-contrast: more) {
+      :root { --border: #77847d; --muted: #3f4b45; }
+    }
+
+    .cloud-panel { display:grid; gap:16px; }
+    .cloud-status { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:12px; background:var(--surface-2); border:1px solid var(--border); }
+    .cloud-status.ready { background:var(--income-soft); }
+    .cloud-status.error { background:var(--expense-soft); }
+    .cloud-status.sync { background:var(--warning-soft); }
+    .cloud-user { display:grid; gap:10px; }
+    .cloud-actions { display:flex; flex-wrap:wrap; gap:8px; }
+    .cloud-invite { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
+    .cloud-invite .field { margin:0; }
+    .auth-dialog { max-width:460px; width:calc(100% - 32px); }
+    .auth-copy { color:var(--muted); margin:0; }
+    .auth-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .auth-message { min-height:24px; color:var(--muted); }
+    @media (max-width:640px){ .cloud-invite { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">К основному содержанию</a>
+  <svg class="sr-only" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 6.5h14a2 2 0 0 1 2 2V19H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12"></path><path d="M16 11h5v4h-5a2 2 0 0 1 0-4Z"></path></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><path d="M4 7v13h16V7"></path><path d="M3 4h18v3H3z"></path><path d="M9 11h6"></path></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M13.5 6.5 17.5 10.5"></path><path d="m4 20 1-5L16 4a2 2 0 0 1 3 3L8 18l-4 2Z"></path></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"></path><path d="m8 7 4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4"></path></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"></path></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4"></path><path d="m7 9 5-5 5 5"></path><path d="M5 21h14"></path></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7h.01"></path></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"></path></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"></path></symbol>
+  </svg>
+
+  <div class="app">
+    <aside class="sidebar" aria-label="Основная навигация">
+      <div class="brand"><div class="brand-mark"><svg class="icon"><use href="#i-home"></use></svg></div><div><strong>Наш бюджет</strong><small>семья Степановых</small></div></div>
+      <nav class="nav" data-nav></nav>
+      <div class="sidebar-note"><svg class="icon"><use href="#i-info"></use></svg><span>Данные остаются только в этом браузере.</span></div>
+    </aside>
+    <div class="workspace">
+      <nav class="mobile-nav" data-nav aria-label="Основная навигация"></nav>
+      <header class="topbar">
+        <div class="month-control">
+          <button class="icon-button" id="prevMonth" aria-label="Предыдущий месяц"><svg class="icon"><use href="#i-left"></use></svg></button>
+          <div class="month-label"><strong id="monthName"></strong><span id="monthState"></span></div>
+          <button class="icon-button" id="nextMonth" aria-label="Следующий месяц"><svg class="icon"><use href="#i-right"></use></svg></button>
+        </div>
+        <div class="top-actions">
+          <button class="button secondary" id="quickExpense"><svg class="icon"><use href="#i-plus"></use></svg>Расход</button>
+          <button class="button primary" id="quickIncome"><svg class="icon"><use href="#i-plus"></use></svg>Доход</button>
+        </div>
+      </header>
+
+      <main id="main" tabindex="-1">
+        <section class="view" id="view-overview" data-view="overview">
+          <div class="page-heading"><div><h1>План месяца</h1><p>Деньги между поступлениями и обязательства до конца месяца.</p></div></div>
+          <div class="summary">
+            <div class="balance-panel">
+              <div class="eyebrow">Остаток сейчас</div>
+              <div class="big-money" id="balanceNow">0 ₽</div>
+              <p class="balance-note" id="balanceNowNote"></p>
+              <div class="balance-settings"><button class="button on-dark small" id="setBaseline">Задать деньги на текущий день</button></div>
+            </div>
+            <div class="summary-metrics">
+              <div class="metric"><span>До следующего дохода</span><strong id="untilIncome">0 ₽</strong></div>
+              <div class="metric"><span>Прогноз на конец месяца</span><strong id="endForecast">0 ₽</strong></div>
+              <div class="metric"><span>Запланировано расходов</span><strong id="plannedExpenses">0 ₽</strong></div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-header"><div><h2>Периоды между доходами</h2><p>Каждый период заканчивается накануне следующего поступления.</p></div></div>
+            <div class="periods" id="periods"></div>
+          </div>
+          <div class="section">
+            <div class="section-header"><div><h2>Расходы месяца</h2><p>Нажмите «Провести» — остаток изменится сразу.</p></div><button class="button ghost small" data-go="transactions">Все операции</button></div>
+            <div class="live-balance-bar" aria-live="polite">
+              <div class="live-balance-main"><span>Остаток сейчас</span><strong id="liveBalanceNow">0 ₽</strong></div>
+              <div class="live-balance-forecast">После всех расходов <strong id="liveEndForecast">0 ₽</strong></div>
+            </div>
+            <div class="ledger" id="upcoming"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-transactions" data-view="transactions" hidden>
+          <div class="page-heading"><div><h1>Доходы и расходы</h1><p>Расход можно перетащить в другой период или перенести кнопкой со стрелками.</p></div><button class="button primary" id="addTransaction"><svg class="icon"><use href="#i-plus"></use></svg>Добавить операцию</button></div>
+          <div class="section-header"><div class="filters" id="filters"></div><div id="transactionCount" class="muted"></div></div>
+          <section class="calendar-panel" aria-labelledby="calendarTitle"><div class="calendar-heading"><div><h2 id="calendarTitle">Календарь месяца</h2><p>Остаток рассчитан на конец каждого дня с учётом плана.</p></div><div class="calendar-legend" aria-label="Обозначения"><span class="income-key">Доходы</span><span class="expense-key">Расходы</span></div></div><div class="calendar-scroll"><div class="calendar-grid" id="budgetCalendar"></div></div></section>
+          <div class="period-ledger-list" id="transactionsList"></div>
+          <section class="next-month-preview" id="nextMonthPreview" aria-labelledby="nextMonthPreviewTitle">
+            <div class="next-month-card">
+              <div class="section-header"><div><h2 id="nextMonthPreviewTitle">Следующий месяц</h2><p id="nextMonthPreviewSubtitle">Ближайшие операции следующего месяца.</p></div><button class="button secondary small" id="openNextMonth">Открыть месяц</button></div>
+              <div class="ledger" id="nextMonthTransactions"></div>
+              <div class="next-month-note">Здесь показаны запланированные операции. Чтобы изменить их, откройте следующий месяц.</div>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="view-recurring" data-view="recurring" hidden>
+          <div class="page-heading"><div><h1>Постоянные</h1><p>Настройте регулярные поступления и обязательные платежи. Они автоматически создаются в каждом месяце.</p></div></div>
+
+          <div class="section" style="margin-top:0">
+            <div class="section-header"><div><h2>Постоянные доходы</h2><p>Зарплаты и другие регулярные поступления.</p></div><div class="page-heading-actions"><div class="recurring-total"><span>Всего в месяц</span><strong id="recurringIncomeGrandTotal">0 ₽</strong></div><button class="button primary" id="addRecurringIncome"><svg class="icon"><use href="#i-plus"></use></svg>Новый постоянный доход</button></div></div>
+            <div class="recurring-sections" id="recurringIncomeList"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-header"><div><h2>Постоянные расходы</h2><p>Регулярные платежи по категориям.</p></div><div class="page-heading-actions"><div class="recurring-total"><span>Всего в месяц</span><strong id="recurringGrandTotal">0 ₽</strong></div><button class="button primary" id="addRecurring"><svg class="icon"><use href="#i-plus"></use></svg>Новый постоянный расход</button></div></div>
+            <div class="recurring-sections" id="recurringList"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-backup" data-view="backup" hidden>
+          <div class="page-heading"><div><h1>Резервная копия</h1><p>Сохраните данные в JSON или восстановите их из ранее созданного файла.</p></div></div>
+          <div class="backup-layout">
+            <div class="panel"><h2>Экспорт и импорт</h2><p>Рекомендуем делать копию после крупных изменений. Импорт заменит текущие данные после подтверждения.</p><div class="backup-actions"><button class="button primary" id="exportJson"><svg class="icon"><use href="#i-download"></use></svg>Скачать JSON</button><button class="button secondary" id="importJson"><svg class="icon"><use href="#i-upload"></use></svg>Импортировать JSON</button><input id="importFile" type="file" accept="application/json,.json" hidden></div></div>
+            <div class="panel cloud-panel" id="cloudPanel"><div class="cloud-status sync"><div><strong>Общее хранилище</strong><div>Проверяю подключение к Supabase...</div></div></div></div>
+            <div class="panel"><h2>Начать заново</h2><p>Очистить локальную копию приложения. Общие данные в Supabase останутся без изменений, пока вы не нажмёте «Сохранить сейчас».</p><button class="button danger" id="resetData"><svg class="icon"><use href="#i-trash"></use></svg>Очистить локальную копию</button></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="authDialog" class="auth-dialog" aria-labelledby="authTitle">
+    <form id="authForm" novalidate>
+      <div class="dialog-header"><h2 id="authTitle">Вход в семейный бюджет</h2></div>
+      <div class="dialog-body">
+        <p class="auth-copy">Войдите в свой аккаунт Supabase. У вас и у мужа будут отдельные логины, но одна общая база бюджета.</p>
+        <div class="form-grid" style="margin-top:16px">
+          <div class="field full"><label for="authEmail">Email</label><input id="authEmail" name="email" type="email" autocomplete="email" required></div>
+          <div class="field full"><label for="authPassword">Пароль</label><input id="authPassword" name="password" type="password" autocomplete="current-password" minlength="6" required></div>
+          <div class="field full auth-message" id="authMessage"></div>
+        </div>
+      </div>
+      <div class="dialog-footer"><div class="auth-actions"><button class="button secondary" type="button" id="authSignUp">Создать аккаунт</button><button class="button primary" type="submit">Войти</button></div></div>
+    </form>
+  </dialog>
+
+  <dialog id="transactionDialog" aria-labelledby="transactionTitle">
+    <form id="transactionForm" novalidate>
+      <div class="dialog-header"><h2 id="transactionTitle">Новая операция</h2><button type="button" class="icon-button" data-close aria-label="Закрыть"><svg class="icon"><use href="#i-close"></use></svg></button></div>
+      <div class="dialog-body"><div class="form-grid">
+        <div class="field full"><label>Тип операции</label><div class="type-toggle"><label><input type="radio" name="type" value="expense" checked><span>Расход</span></label><label><input type="radio" name="type" value="income"><span>Доход</span></label></div></div>
+        <div class="field full" id="recurringTemplateField"><label for="txRecurringTemplate">Взять из постоянных расходов</label><select id="txRecurringTemplate" name="templateId"><option value="">Не из списка — заполнить вручную</option></select><span class="hint">Выбор заполнит название, категорию и сумму. Их можно изменить для этой операции.</span></div>
+        <div class="field full"><label for="txName">Название</label><input id="txName" name="name" autocomplete="off" required maxlength="80"><div class="error-text" data-error="name"></div></div>
+        <div class="field"><label for="txDate">Дата</label><input id="txDate" name="date" type="date" required><div class="error-text" data-error="date"></div></div>
+        <div class="field"><label for="txCategory">Категория</label><input id="txCategory" name="category" list="categoryList" autocomplete="off" maxlength="40"><datalist id="categoryList"><option value="Зарплата"><option value="Кредиты"><option value="Дом"><option value="Продукты"><option value="Транспорт"><option value="Дети"><option value="Личные расходы"><option value="Накопления"><option value="Разовое"></datalist></div>
+        <div class="field"><label for="txPlan">План, ₽</label><input id="txPlan" name="plan" type="number" min="0" step="1" inputmode="decimal" required><div class="error-text" data-error="plan"></div></div>
+        <div class="field"><label for="txActual">Факт, ₽</label><input id="txActual" name="actual" type="number" min="0" step="1" inputmode="decimal" placeholder="Если отличается"><span class="hint">Пусто — используется сумма по плану.</span></div>
+        <div class="field full"><label class="checkline"><input id="txPaid" name="paid" type="checkbox">Операция уже проведена</label></div>
+        <div class="field full"><label for="txNote">Комментарий</label><input id="txNote" name="note" maxlength="120" autocomplete="off"></div>
+      </div></div>
+      <div class="dialog-footer"><button type="button" class="button danger" id="deleteTransaction" hidden><svg class="icon"><use href="#i-trash"></use></svg>Удалить</button><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></div>
+    </form>
+  </dialog>
+
+  <dialog id="recurringDialog" aria-labelledby="recurringTitle">
+    <form id="recurringForm" novalidate>
+      <div class="dialog-header"><h2 id="recurringTitle">Постоянный расход</h2><button type="button" class="icon-button" data-close aria-label="Закрыть"><svg class="icon"><use href="#i-close"></use></svg></button></div>
+      <div class="dialog-body"><div class="form-grid">
+        <div class="field full"><label for="recName">Название</label><input id="recName" name="name" required maxlength="80"><div class="error-text" data-error="name"></div></div>
+        <div class="field"><label for="recDays">Дни месяца</label><input id="recDays" name="days" type="text" placeholder="Например: 5, 15, 25" required><span class="hint">Можно указать несколько дней через запятую.</span><div class="error-text" data-error="days"></div></div>
+        <div class="field"><label for="recAmount">Сумма одного расхода, ₽</label><input id="recAmount" name="amount" type="number" min="0" step="1" inputmode="decimal" required><span class="hint">Эта сумма будет создана на каждую указанную дату.</span><div class="error-text" data-error="amount"></div></div>
+        <div class="field full"><label for="recCategory">Раздел</label><select id="recCategory" name="category"><option value="Кредиты">Кредиты</option><option value="Коммунальные">Коммунальные</option><option value="Продукты">Продукты</option><option value="Транспорт">Транспорт</option><option value="Дети">Дети</option><option value="Личные расходы">Личные расходы</option><option value="Накопления">Накопления</option><option value="Прочее">Прочее</option></select><span class="hint">По разделам постоянные расходы собраны на общей странице.</span></div>
+      </div></div>
+      <div class="dialog-footer"><button type="button" class="button danger" id="deleteRecurring" hidden><svg class="icon"><use href="#i-trash"></use></svg>Удалить</button><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></div>
+    </form>
+  </dialog>
+
+  <dialog id="recurringIncomeDialog" aria-labelledby="recurringIncomeTitle">
+    <form id="recurringIncomeForm" novalidate>
+      <div class="dialog-header"><h2 id="recurringIncomeTitle">Постоянный доход</h2><button type="button" class="icon-button" data-close aria-label="Закрыть"><svg class="icon"><use href="#i-close"></use></svg></button></div>
+      <div class="dialog-body"><div class="form-grid">
+        <div class="field full"><label for="recIncomeName">Название</label><input id="recIncomeName" name="name" required maxlength="80" placeholder="Например: Зарплата Кирилла"><div class="error-text" data-error="name"></div></div>
+        <div class="field full"><label class="checkline"><input id="recIncomeSalaryAuto" name="salaryAuto" type="checkbox">Автоматически рассчитывать зарплату по рабочим дням</label><span class="hint">Месячная сумма делится пропорционально рабочим дням: 1–15 включительно — зарплата, 16–конец месяца — аванс.</span></div>
+        <div class="field" data-income-regular><label for="recIncomeDays">Дни месяца</label><input id="recIncomeDays" name="days" type="text" placeholder="Например: 5, 20"><span class="hint">Можно указать несколько дней через запятую.</span><div class="error-text" data-error="days"></div></div>
+        <div class="field" data-income-regular><label for="recIncomeAmount">Сумма одного поступления, ₽</label><input id="recIncomeAmount" name="amount" type="number" min="0" step="1" inputmode="decimal"><span class="hint">Эта сумма будет создана на каждую указанную дату.</span><div class="error-text" data-error="amount"></div></div>
+        <div class="field" data-income-salary hidden><label for="recIncomeMonthlySalary">Полная зарплата за месяц, ₽</label><input id="recIncomeMonthlySalary" name="monthlySalary" type="number" min="0" step="1" inputmode="decimal"><span class="hint">Это сумма за полный отработанный месяц.</span><div class="error-text" data-error="monthlySalary"></div></div>
+        <div class="field" data-income-salary hidden><label for="recIncomeSalaryPayDayFirst">Дата выплаты за 1–15</label><input id="recIncomeSalaryPayDayFirst" name="salaryPayDayFirst" type="number" min="1" max="31" step="1" inputmode="numeric" value="15"><span class="hint">Фактическое число поступления первой части.</span><div class="error-text" data-error="salaryPayDayFirst"></div></div>
+        <div class="field" data-income-salary hidden><label for="recIncomeSalaryPayDaySecond">Дата выплаты за 16–конец</label><input id="recIncomeSalaryPayDaySecond" name="salaryPayDaySecond" type="number" min="1" max="31" step="1" inputmode="numeric" value="30"><span class="hint">Фактическое число поступления второй части.</span><div class="error-text" data-error="salaryPayDaySecond"></div></div>
+        <div class="field full" id="recIncomeSalaryCalculateWrap" data-income-salary hidden><button class="button primary" type="button" id="calculateRecurringIncomeSalary">Рассчитать</button></div>
+        <div class="field full" id="recIncomeSalaryResult" data-income-salary hidden>
+          <div class="panel" style="padding:18px">
+            <strong>Расчёт зарплаты</strong>
+            <p id="recIncomeSalaryPreviewText" style="margin:6px 0 16px"></p>
+            <div class="form-grid">
+              <div class="field"><label for="recIncomeSalaryFirstAmount">Выплата за 1–15, ₽</label><input id="recIncomeSalaryFirstAmount" name="salaryFirstAmount" type="number" min="0" step="1" inputmode="decimal"><span class="hint">Можно скорректировать вручную.</span><div class="error-text" data-error="salaryFirstAmount"></div></div>
+              <div class="field"><label for="recIncomeSalarySecondAmount">Выплата за 16–конец, ₽</label><input id="recIncomeSalarySecondAmount" name="salarySecondAmount" type="number" min="0" step="1" inputmode="decimal"><span class="hint">Можно скорректировать вручную.</span><div class="error-text" data-error="salarySecondAmount"></div></div>
+            </div>
+            <p id="recIncomeSalaryResultTotal" class="hint" style="margin:12px 0 0"></p>
+          </div>
+        </div>
+        <div class="field full"><label for="recIncomeCategory">Категория</label><input id="recIncomeCategory" name="category" value="Зарплата" list="incomeCategoryList" maxlength="40"><datalist id="incomeCategoryList"><option value="Зарплата"><option value="Подработка"><option value="Пособия"><option value="Аренда"><option value="Прочий доход"></datalist><span class="hint">Категория будет использоваться в операциях и календаре.</span></div>
+      </div></div>
+      <div class="dialog-footer"><button type="button" class="button danger" id="deleteRecurringIncome" hidden><svg class="icon"><use href="#i-trash"></use></svg>Удалить</button><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button type="button" class="button secondary" id="recalculateRecurringIncomeSalary" hidden>Рассчитать заново</button><button class="button primary" id="saveRecurringIncome" type="submit">Сохранить</button></div></div>
+    </form>
+  </dialog>
+
+  <dialog id="baselineDialog" aria-labelledby="baselineTitle">
+    <form id="baselineForm" novalidate>
+      <div class="dialog-header"><h2 id="baselineTitle">Деньги на текущий день</h2><button type="button" class="icon-button" data-close aria-label="Закрыть"><svg class="icon"><use href="#i-close"></use></svg></button></div>
+      <div class="dialog-body"><div class="form-grid">
+        <div class="field"><label for="baselineDate">Дата отсчёта</label><input id="baselineDate" name="date" type="date" required><div class="error-text" data-error="date"></div></div>
+        <div class="field"><label for="baselineAmount">Сколько денег сейчас, ₽</label><input id="baselineAmount" name="amount" type="number" step="1" inputmode="decimal" required><div class="error-text" data-error="amount"></div></div>
+        <div class="field full"><span class="hint">Эта сумма уже должна учитывать все доходы и проведённые расходы до выбранной даты. Новые проведённые расходы будут уменьшать её.</span></div>
+      </div></div>
+      <div class="dialog-footer"><button type="button" class="button danger" id="clearBaseline" hidden>Сбросить сумму</button><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></div>
+    </form>
+  </dialog>
+
+  <dialog id="moveDialog" aria-labelledby="moveTitle">
+    <form id="moveForm">
+      <div class="dialog-header"><h2 id="moveTitle">Перенести расход</h2><button type="button" class="icon-button" data-close aria-label="Закрыть"><svg class="icon"><use href="#i-close"></use></svg></button></div>
+      <div class="dialog-body"><div class="form-grid">
+        <div class="field full"><label for="movePeriodSelect">Куда перенести</label><select id="movePeriodSelect" name="period" required></select><span class="hint">Можно выбрать другой период текущего месяца или следующий месяц.</span></div>
+        <div class="field full" id="moveDateField" hidden><label for="moveTargetDate">Дата в следующем месяце</label><input id="moveTargetDate" name="targetDate" type="date"><span class="hint">Выберите точную дату перенесённого платежа.</span><div class="error-text" data-error="targetDate"></div></div>
+        <div class="field full"><label for="moveAmount">Сумма переноса, ₽</label><input id="moveAmount" name="amount" type="number" min="1" step="1" inputmode="decimal" required><span class="hint" id="moveAmountHint">Чтобы перенести только остаток, укажите его сумму. В текущем периоде останется оплаченная часть.</span><div class="error-text" data-error="amount"></div></div>
+      </div></div>
+      <div class="dialog-footer"><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Перенести</button></div></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const STORAGE_KEY = 'stepanovy-family-budget-v1';
+      const SUPABASE_URL = 'https://hhawxjifdqlwyaxbfspc.supabase.co';
+      const SUPABASE_KEY = 'sb_publishable_VbfT1VEsS1a-Lu-_EZlKKA_T52dbc07';
+      const cloud = { client:null, user:null, householdId:null, channel:null, status:'sync', message:'Подключаюсь...', updatedAt:null };
+      let cloudSaveTimer = null;
+      const today = new Date(2026, 8, 19); // фиксированная дата исходной рабочей версии; после 2026-09 используется системная дата
+      const realToday = new Date();
+      const navItems = [
+        ['overview', 'i-home', 'План месяца'],
+        ['transactions', 'i-wallet', 'Операции'],
+        ['recurring', 'i-repeat', 'Постоянные'],
+        ['backup', 'i-archive', 'Копия']
+      ];
+      const rub = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
+      const fullDate = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+      const monthFormat = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' });
+      const uid = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const iso = (y, m, d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const parseDate = value => { const [y,m,d] = value.split('-').map(Number); return new Date(y,m-1,d); };
+      const monthKeyFrom = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+      const selectedToday = key => key === '2026-09' ? today : realToday;
+
+      function seedState() {
+        const key=monthKeyFrom(realToday);
+        return { version:1, selectedMonth:key, activeView:'overview', filter:'all', recurring:[], recurringIncome:[], months:{[key]:{openingBalance:0,transactions:[]}} };
+      }
+
+      function recurringDays(rule) {
+        const source=rule?.salaryAuto?[rule.salaryPayDayFirst,rule.salaryPayDaySecond]:(Array.isArray(rule.days)&&rule.days.length?rule.days:[rule.day]);
+        return [...new Set(source.map(Number).filter(day=>Number.isInteger(day)&&day>=1&&day<=31))].sort((a,b)=>a-b);
+      }
+
+      const RU_2026_NONWORKING_RANGES = [
+        ['2026-01-01','2026-01-11'],
+        ['2026-02-21','2026-02-23'],
+        ['2026-03-07','2026-03-09'],
+        ['2026-05-01','2026-05-03'],
+        ['2026-05-09','2026-05-11'],
+        ['2026-06-12','2026-06-14']
+      ];
+      const RU_2026_NONWORKING_DATES = new Set(['2026-11-04','2026-12-31']);
+
+      function localDateKey(date){return iso(date.getFullYear(),date.getMonth()+1,date.getDate());}
+      function isRussianWorkingDay(date){
+        const weekday=date.getDay();
+        if(weekday===0||weekday===6)return false;
+        if(date.getFullYear()!==2026)return true;
+        const key=localDateKey(date);
+        if(RU_2026_NONWORKING_DATES.has(key))return false;
+        if(RU_2026_NONWORKING_RANGES.some(([from,to])=>key>=from&&key<=to))return false;
+        return true;
+      }
+
+      function russianWorkdayInfo(key){
+        const [year,mon]=key.split('-').map(Number),lastDay=new Date(year,mon,0).getDate();
+        let total=0,firstHalf=0,secondHalf=0;
+        for(let day=1;day<=lastDay;day++){
+          if(!isRussianWorkingDay(new Date(year,mon-1,day)))continue;
+          total++;
+          if(day<=15)firstHalf++;else secondHalf++;
+        }
+        return {total,firstHalf,secondHalf,exact:year===2026};
+      }
+
+      function salarySplitForMonth(rule,key,{ignoreManual=false}={}){
+        const calendar=russianWorkdayInfo(key),monthlySalary=Math.round(Number(rule.monthlySalary||0));
+        const calculatedFirstAmount=calendar.total>0?Math.round(monthlySalary*calendar.firstHalf/calendar.total):0;
+        const calculatedSecondAmount=monthlySalary-calculatedFirstAmount;
+        const manual=!ignoreManual&&rule?.salaryManualSplits?.[key];
+        const firstAmount=manual&&Number.isFinite(Number(manual.first))?Math.round(Number(manual.first)):calculatedFirstAmount;
+        const secondAmount=manual&&Number.isFinite(Number(manual.second))?Math.round(Number(manual.second)):calculatedSecondAmount;
+        const [year,mon]=key.split('-').map(Number),lastDay=new Date(year,mon,0).getDate();
+        const firstPayDay=Math.min(Math.max(Number(rule.salaryPayDayFirst)||15,1),lastDay);
+        const secondPayDay=Math.min(Math.max(Number(rule.salaryPayDaySecond)||lastDay,1),lastDay);
+        return {...calendar,monthlySalary,calculatedFirstAmount,calculatedSecondAmount,firstAmount,secondAmount,firstPayDay,secondPayDay,manual:Boolean(manual)};
+      }
+
+      function recurringIncomeMonthlyAmount(rule,key=state?.selectedMonth||'2026-09'){
+        if(rule?.salaryAuto){const split=salarySplitForMonth(rule,key);return split.firstAmount+split.secondAmount;}
+        return Number(rule?.amount||0)*recurringDays(rule).length;
+      }
+
+      function recurringSection(category) {
+        const value=String(category||'').trim();
+        if(value==='Кредиты')return 'Кредиты';
+        if(value==='Дом'||value==='Коммунальные')return 'Коммунальные';
+        if(['Продукты','Транспорт','Дети','Личные расходы','Накопления'].includes(value))return value;
+        return 'Прочее';
+      }
+
+      function recurringInstanceKey(recurringId, day) {
+        return `${recurringId}|${Number(day)}`;
+      }
+
+      function suppressRecurringInstance(monthData, tx) {
+        if(!tx?.recurringId)return;
+        const day=Number(tx.recurringDay||parseDate(tx.date).getDate());
+        if(!Number.isInteger(day))return;
+        const suppressed=new Set(monthData.suppressedRecurringInstances||[]);
+        suppressed.add(recurringInstanceKey(tx.recurringId,day));
+        monthData.suppressedRecurringInstances=[...suppressed];
+      }
+
+      function generateRecurring(target, key) {
+        if (!target.months[key]) target.months[key] = { openingBalance:0, transactions:[] };
+        const month = target.months[key];
+        const suppressed=new Set(month.suppressedRecurringInstances||[]);
+        const [year, mon] = key.split('-').map(Number);
+        const lastDay = new Date(year, mon, 0).getDate();
+        (target.recurring||[]).filter(r => r.active && (!r.startMonth || r.startMonth <= key)).forEach(r => {
+          recurringDays(r).forEach(day=>{
+            if(suppressed.has(recurringInstanceKey(r.id,day)))return;
+            const exists=month.transactions.some(t=>t.recurringId===r.id&&Number(t.recurringDay||parseDate(t.date).getDate())===day);
+            if(exists)return;
+            month.transactions.push({ id:uid('tx'), recurringId:r.id, recurringDay:day, type:'expense', name:r.name, category:r.category, date:iso(year,mon,Math.min(day,lastDay)), plan:r.amount, actual:null, paid:false });
+          });
+        });
+        (target.recurringIncome||[]).filter(r => r.active && (!r.startMonth || r.startMonth <= key)).forEach(r => {
+          if(r.salaryAuto){
+            const split=salarySplitForMonth(r,key);
+            const parts=[
+              {day:split.firstPayDay,amount:split.firstAmount,label:'зарплата',salaryPart:'first'},
+              {day:split.secondPayDay,amount:split.secondAmount,label:'аванс',salaryPart:'second'}
+            ];
+            parts.forEach(part=>{
+              if(suppressed.has(recurringInstanceKey(r.id,part.day)))return;
+              const exists=month.transactions.some(t=>t.recurringId===r.id&&Number(t.recurringDay||parseDate(t.date).getDate())===part.day);
+              if(exists)return;
+              month.transactions.push({id:uid('tx'),recurringId:r.id,recurringDay:part.day,salaryPart:part.salaryPart,type:'income',name:`${r.name} — ${part.label}`,category:r.category||'Зарплата',date:iso(year,mon,part.day),plan:part.amount,actual:null,paid:false});
+            });
+            return;
+          }
+          recurringDays(r).forEach(day=>{
+            if(suppressed.has(recurringInstanceKey(r.id,day)))return;
+            const exists=month.transactions.some(t=>t.recurringId===r.id&&Number(t.recurringDay||parseDate(t.date).getDate())===day);
+            if(exists)return;
+            month.transactions.push({ id:uid('tx'), recurringId:r.id, recurringDay:day, type:'income', name:r.name, category:r.category||'Зарплата', date:iso(year,mon,Math.min(day,lastDay)), plan:r.amount, actual:null, paid:false });
+          });
+        });
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return seedState();
+          const parsed = JSON.parse(raw);
+          if (!parsed || parsed.version !== 1 || !parsed.months || !Array.isArray(parsed.recurring)) throw new Error('bad schema');
+          if(!Array.isArray(parsed.recurringIncome)) parsed.recurringIncome=[];
+          return parsed;
+        } catch (error) { return seedState(); }
+      }
+
+      let state = loadState();
+
+      function repairRecurringMoves(target){
+        let changed=false;
+        Object.values(target.months||{}).forEach(monthData=>{
+          const recurringTx=(monthData.transactions||[]).filter(tx=>tx.recurringId);
+          recurringTx.forEach(tx=>{
+            if(tx.recurringDay!==undefined&&tx.recurringDay!==null&&tx.recurringDay!=='')return;
+            const rule=[...(target.recurring||[]),...(target.recurringIncome||[])].find(r=>r.id===tx.recurringId);
+            if(!rule)return;
+            const days=recurringDays(rule),dateDay=parseDate(tx.date).getDate();
+            if(days.length===1){tx.recurringDay=days[0];changed=true;}
+            else if(days.includes(dateDay)){tx.recurringDay=dateDay;changed=true;}
+          });
+
+          // Убираем только явные дубли, которые могли появиться из-за старой логики
+          // после перетаскивания постоянного расхода. Перенесённую запись сохраняем.
+          const groups=new Map();
+          (monthData.transactions||[]).forEach(tx=>{
+            if(!tx.recurringId||tx.recurringDay===undefined||tx.recurringDay===null||tx.recurringDay==='')return;
+            const key=`${tx.recurringId}|${tx.recurringDay}`;
+            if(!groups.has(key))groups.set(key,[]);
+            groups.get(key).push(tx);
+          });
+          groups.forEach(items=>{
+            if(items.length<2)return;
+            const moved=items.find(tx=>parseDate(tx.date).getDate()!==Number(tx.recurringDay));
+            const generated=items.find(tx=>tx!==moved&&!tx.paid&&parseDate(tx.date).getDate()===Number(tx.recurringDay));
+            if(moved&&generated){
+              monthData.transactions=monthData.transactions.filter(tx=>tx.id!==generated.id);
+              changed=true;
+            }
+          });
+        });
+        return changed;
+      }
+
+      if(repairRecurringMoves(state)) localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+      let editingTransaction = null;
+      let transactionPeriod = null;
+      let editingRecurring = null;
+      let editingRecurringIncome = null;
+      let recurringIncomeSalaryCalculated = false;
+      let movingTransactionId = null;
+      let draggedTransactionId = null;
+      const openRecurringSections = new Set();
+      const openTransactionPeriods = new Set();
+      let toastTimer;
+      const $ = (sel, root=document) => root.querySelector(sel);
+      const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+      const month = () => state.months[state.selectedMonth];
+      const amountOf = tx => tx.actual !== null && tx.actual !== '' && tx.actual !== undefined ? Number(tx.actual) : Number(tx.plan || 0);
+      const amountForecast = tx => tx.type === 'income' ? amountOf(tx) : (tx.paid ? amountOf(tx) : Number(tx.plan || 0));
+      const sortTx = list => [...list].sort((a,b) => a.date.localeCompare(b.date) || (a.type === 'income' ? -1 : 1) || a.name.localeCompare(b.name));
+
+      function persistLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+      function sharedState() { return { version:1, months:state.months, recurring:state.recurring||[], recurringIncome:state.recurringIncome||[] }; }
+      function mergeSharedState(remote) {
+        if(!remote || remote.version!==1 || !remote.months || !Array.isArray(remote.recurring)) throw new Error('Некорректный формат данных в облаке');
+        state = { ...state, months:remote.months, recurring:remote.recurring, recurringIncome:Array.isArray(remote.recurringIncome)?remote.recurringIncome:[] };
+        persistLocal();
+      }
+      function save() { persistLocal(); queueCloudSave(); }
+      function setCloudStatus(status,message){ cloud.status=status; cloud.message=message; renderCloudPanel(); }
+      function cloudErrorMessage(error){ return error?.message || 'Не удалось выполнить запрос к Supabase.'; }
+      function formatCloudTime(value){ if(!value)return ''; try{return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(value));}catch(_){return '';} }
+
+      function renderCloudPanel(){
+        const el=$('#cloudPanel'); if(!el)return;        if(!cloud.user){ el.innerHTML=`<div class="cloud-status ${cloud.status}"><div><strong>Общее хранилище</strong><div>${escapeHtml(cloud.message||'Нужно войти')}</div></div></div><button class="button primary" id="cloudOpenAuth" type="button">Войти</button>`; return; }
+        const stamp=cloud.updatedAt?` Последнее обновление: ${formatCloudTime(cloud.updatedAt)}.`:'';
+        el.innerHTML=`
+          <div class="cloud-status ${cloud.status}"><div><strong>Supabase подключён</strong><div>${escapeHtml(cloud.message||'Данные синхронизируются.')}${escapeHtml(stamp)}</div></div></div>
+          <div class="cloud-user"><div>Вы вошли как <strong>${escapeHtml(cloud.user.email||'')}</strong></div><div class="cloud-actions"><button class="button secondary" id="cloudPull" type="button">Загрузить из облака</button><button class="button secondary" id="cloudPush" type="button">Сохранить сейчас</button><button class="button secondary" id="cloudSignOut" type="button">Выйти</button></div></div>
+          <form class="cloud-invite" id="cloudInviteForm"><div class="field"><label for="cloudInviteEmail">Пригласить мужа по email</label><input id="cloudInviteEmail" name="email" type="email" required placeholder="email@example.com"><span class="hint">Он создаёт отдельный аккаунт с этим же email и автоматически подключается к вашей семье.</span></div><button class="button primary" type="submit">Пригласить</button></form>`;
+      }
+
+      function showAuth(message=''){
+        const dialog=$('#authDialog'); $('#authMessage').textContent=message; if(!dialog.open) dialog.showModal();
+      }
+
+      async function signIn(email,password){
+        setCloudStatus('sync','Выполняю вход...');
+        const {data,error}=await cloud.client.auth.signInWithPassword({email,password});
+        if(error) throw error;
+        cloud.user=data.user; await prepareCloud();
+      }
+
+      async function signUp(email,password){
+        $('#authMessage').textContent='Создаю аккаунт...';
+        const {data,error}=await cloud.client.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin+window.location.pathname}});
+        if(error) throw error;
+        if(data.session){ cloud.user=data.user; await prepareCloud(); }
+        else $('#authMessage').textContent='Аккаунт создан. Подтвердите email по письму Supabase, затем вернитесь сюда и войдите.';
+      }
+
+      async function ensureHousehold(){
+        const {data:memberships,error:membershipError}=await cloud.client.from('household_members').select('household_id,role').limit(1);
+        if(membershipError) throw membershipError;
+        if(memberships?.length){ cloud.householdId=memberships[0].household_id; return; }
+        const {data:invites,error:inviteError}=await cloud.client.from('household_invitations').select('id,household_id,email').limit(1);
+        if(inviteError) throw inviteError;
+        if(invites?.length){
+          const invite=invites[0];
+          const {error:joinError}=await cloud.client.from('household_members').insert({household_id:invite.household_id,user_id:cloud.user.id,role:'member'});
+          if(joinError) throw joinError;
+          await cloud.client.from('household_invitations').delete().eq('id',invite.id);
+          cloud.householdId=invite.household_id; return;
+        }
+        const {data:household,error:householdError}=await cloud.client.from('households').insert({name:'Семья Степановых',owner_id:cloud.user.id}).select('id').single();
+        if(householdError) throw householdError;
+        const {error:memberError}=await cloud.client.from('household_members').insert({household_id:household.id,user_id:cloud.user.id,role:'owner'});
+        if(memberError) throw memberError;
+        cloud.householdId=household.id;
+      }
+
+      async function loadCloudState({bootstrap=true}={}){
+        if(!cloud.householdId)return;
+        setCloudStatus('sync','Загружаю общие данные...');
+        const {data,error}=await cloud.client.from('budget_state').select('data,updated_at,updated_by').eq('household_id',cloud.householdId).maybeSingle();
+        if(error) throw error;
+        if(data?.data){
+          mergeSharedState(data.data); cloud.updatedAt=data.updated_at; setCloudStatus('ready','Общие данные загружены.'); render(); return;
+        }
+        if(bootstrap){ await saveCloudState({silent:true}); setCloudStatus('ready','Текущие данные перенесены в общую базу.'); }
+      }
+
+      function queueCloudSave(){
+        if(!cloud.client||!cloud.user||!cloud.householdId)return;
+        clearTimeout(cloudSaveTimer); cloudSaveTimer=setTimeout(()=>saveCloudState({silent:true}),700);
+      }
+
+      async function saveCloudState({silent=false}={}){
+        if(!cloud.client||!cloud.user||!cloud.householdId)return;
+        if(!silent)setCloudStatus('sync','Сохраняю изменения...');
+        const now=new Date().toISOString();
+        const payload={household_id:cloud.householdId,data:sharedState(),updated_at:now,updated_by:cloud.user.id};
+        const {error}=await cloud.client.from('budget_state').upsert(payload,{onConflict:'household_id'});
+        if(error){ setCloudStatus('error',cloudErrorMessage(error)); return; }
+        cloud.updatedAt=now; setCloudStatus('ready','Изменения сохранены в общей базе.');
+      }
+
+      function subscribeCloud(){
+        if(cloud.channel) cloud.client.removeChannel(cloud.channel);
+        cloud.channel=cloud.client.channel(`budget-${cloud.householdId}`).on('postgres_changes',{event:'*',schema:'public',table:'budget_state',filter:`household_id=eq.${cloud.householdId}`},payload=>{
+          const row=payload.new; if(!row?.data)return;
+          if(row.updated_by===cloud.user?.id && row.updated_at===cloud.updatedAt)return;
+          try{ mergeSharedState(row.data); cloud.updatedAt=row.updated_at; setCloudStatus('ready','Получены изменения с другого устройства.'); render(); }
+          catch(error){ setCloudStatus('error',error.message); }
+        }).subscribe();
+      }
+
+      async function prepareCloud(){
+        try{
+          await ensureHousehold();
+          await loadCloudState({bootstrap:true});
+          subscribeCloud();
+          if($('#authDialog').open) $('#authDialog').close();
+          renderCloudPanel();
+        }catch(error){ setCloudStatus('error',cloudErrorMessage(error)); showAuth(cloudErrorMessage(error)); }
+      }
+
+      async function initCloud(){
+        try{
+          cloud.client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+          const {data:{session}}=await cloud.client.auth.getSession();
+          cloud.user=session?.user||null;
+          cloud.client.auth.onAuthStateChange((_event,sessionNow)=>{ cloud.user=sessionNow?.user||null; renderCloudPanel(); });
+          if(cloud.user) await prepareCloud(); else { setCloudStatus('auth','Войдите, чтобы открыть общую базу.'); showAuth(); }
+        }catch(error){ setCloudStatus('error',cloudErrorMessage(error)); showAuth(cloudErrorMessage(error)); }
+      }
+      function showToast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3500); }
+      function icon(id) { return `<svg class="icon" aria-hidden="true"><use href="#${id}"></use></svg>`; }
+      function formatMoney(value) { return rub.format(Number(value)||0).replace(/\u00a0/g,'\u202f'); }
+      function monthDate() { const [y,m]=state.selectedMonth.split('-').map(Number); return new Date(y,m-1,1); }
+      function effectiveToday() { const d=selectedToday(state.selectedMonth); return monthKeyFrom(d) === state.selectedMonth ? d : (state.selectedMonth < monthKeyFrom(d) ? new Date(2099,0,1) : new Date(1900,0,1)); }
+      function statusOf(tx) { const d=parseDate(tx.date), now=effectiveToday(); if (tx.paid) return ['paid','Проведено']; if (tx.type==='expense' && d < now) return ['overdue','Просрочено']; return ['planned','В плане']; }
+
+      function initNav() {
+        $$('[data-nav]').forEach(container => {
+          container.innerHTML = navItems.map(([id,ic,label]) => `<button class="nav-button" data-view-target="${id}">${icon(ic)}<span>${label}</span></button>`).join('');
+        });
+      }
+
+      function switchView(id) {
+        state.activeView = id; persistLocal();
+        $$('[data-view]').forEach(v => v.hidden = v.dataset.view !== id);
+        $$('[data-view-target]').forEach(b => b.classList.toggle('active', b.dataset.viewTarget === id));
+        $('#main').focus({preventScroll:true});
+        render();
+      }
+
+      function render() {
+        generateRecurring(state, state.selectedMonth); persistLocal();
+        const d=monthDate();
+        $('#monthName').textContent = monthFormat.format(d);
+        const systemKey=monthKeyFrom(realToday);
+        $('#monthState').textContent = state.selectedMonth === systemKey ? 'текущий месяц' : state.selectedMonth === '2026-09' ? 'данные из Excel' : 'плановый месяц';
+        if (state.activeView === 'overview') renderOverview();
+        if (state.activeView === 'transactions') renderTransactions();
+        if (state.activeView === 'recurring') renderRecurring();
+      }
+
+      function calculate() {
+        const txs=sortTx(month().transactions), now=effectiveToday(), opening=Number(month().openingBalance||0);
+        const baseline=month().cashBaseline;
+        const included=new Set(baseline?.includedTransactionIds||[]);
+        let balanceNow=baseline?Number(baseline.amount||0):opening;
+        txs.forEach(tx => {
+          if(baseline&&included.has(tx.id))return;
+          const d=parseDate(tx.date);
+          if (tx.type==='income' && (tx.paid || d <= now)) balanceNow += amountOf(tx);
+          if (tx.type==='expense' && tx.paid) balanceNow -= amountOf(tx);
+        });
+        const nextIncome=txs.find(tx => tx.type==='income' && parseDate(tx.date)>now);
+        let untilIncome=balanceNow;
+        txs.filter(tx => tx.type==='expense' && !tx.paid && (!baseline||!included.has(tx.id)) && (!nextIncome || parseDate(tx.date)<parseDate(nextIncome.date))).forEach(tx=>untilIncome-=Number(tx.plan||0));
+        let end=baseline?balanceNow:opening, plannedExpenses=0;
+        txs.forEach(tx => {
+          const val=amountForecast(tx), d=parseDate(tx.date);
+          if(tx.type==='expense')plannedExpenses+=val;
+          if(!baseline){if(tx.type==='income')end+=val;else end-=val;return;}
+          if(included.has(tx.id))return;
+          if(tx.type==='income'&&!tx.paid&&d>now)end+=val;
+          if(tx.type==='expense'&&!tx.paid)end-=val;
+        });
+        return {txs, now, balanceNow, untilIncome, end, plannedExpenses, nextIncome, baseline};
+      }
+
+      function budgetStartDay() {
+        return state.selectedMonth === '2026-09' ? 18 : 1;
+      }
+
+      function periodActualKey(start) {
+        const [year,mon]=state.selectedMonth.split('-').map(Number);
+        return iso(year,mon,start);
+      }
+
+      function periodActualBalance(start) {
+        const store=month().periodActualBalances||{};
+        const value=store[periodActualKey(start)];
+        return value===null||value===undefined||value===''?null:Number(value);
+      }
+
+      function balanceThroughDay(day, txs) {
+        const startDay=budgetStartDay();
+        if(day<startDay)return 0;
+        const ranges=getPeriodRanges();
+        if(!ranges.length){
+          return txs
+            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=startDay&&txDay<=day;})
+            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),0);
+        }
+        let balance=0;
+        for(const {start,end} of ranges){
+          if(day<start)break;
+          const cutoff=Math.min(day,end);
+          balance=txs
+            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=start&&txDay<=cutoff;})
+            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
+          if(day>=end){
+            const actual=periodActualBalance(start);
+            if(actual!==null)balance=actual;
+          }
+          if(day<=end)break;
+        }
+        return balance;
+      }
+
+      function getPeriodRanges() {
+        const [year,mon]=state.selectedMonth.split('-').map(Number), lastDay=new Date(year,mon,0).getDate(), startDay=budgetStartDay();
+        const starts=[...new Set(month().transactions.filter(t=>t.type==='income'&&parseDate(t.date).getDate()>=startDay).map(t=>parseDate(t.date).getDate()))].sort((a,b)=>a-b);
+        return starts.map((start,index)=>({start,end:index<starts.length-1?starts[index+1]-1:lastDay}));
+      }
+
+      function renderOverview() {
+        const c=calculate();
+        $('#balanceNow').textContent=formatMoney(c.balanceNow);
+        $('#balanceNowNote').textContent = c.baseline ? `Точка отсчёта задана на ${fullDate.format(parseDate(c.baseline.date))}. Новые проведённые расходы уже учтены.` : c.balanceNow >= 0 ? 'Учтены полученные доходы и операции с отметкой «проведено».' : 'Расходы по проведённым операциям превышают полученные доходы.';
+        $('#setBaseline').textContent=c.baseline?'Изменить сумму на текущий день':'Задать деньги на текущий день';
+        $('#untilIncome').textContent=formatMoney(c.untilIncome);
+        $('#endForecast').textContent=formatMoney(c.end);
+        $('#plannedExpenses').textContent=formatMoney(c.plannedExpenses);
+        $('#liveBalanceNow').textContent=formatMoney(c.balanceNow);
+        $('#liveEndForecast').textContent=formatMoney(c.end);
+        [$('#untilIncome'),$('#endForecast')].forEach(el=>el.classList.toggle('negative', parseFloat(el.textContent.replace(/[^\d-]/g,''))<0));
+        renderPeriods(c);
+        const expenses=c.txs.filter(tx => tx.type==='expense');
+        renderLedger($('#upcoming'), expenses, false, true);
+      }
+
+      function renderPeriods(c) {
+        const [y,m]=state.selectedMonth.split('-').map(Number), days=new Date(y,m,0).getDate();
+        const startDay=budgetStartDay();
+        const incomes=c.txs.filter(t=>t.type==='income'&&parseDate(t.date).getDate()>=startDay);
+        if (!incomes.length) { $('#periods').innerHTML='<div class="empty"><strong>Пока нет доходов</strong>Добавьте поступление, чтобы увидеть периоды.</div>'; return; }
+        const dates=[...new Set(incomes.map(t=>parseDate(t.date).getDate()))].sort((a,b)=>a-b);
+        const cards=[];
+        dates.forEach((start,i)=>{
+          const end=i<dates.length-1?dates[i+1]-1:days;
+          const inPeriod=c.txs.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
+          const income=inPeriod.filter(t=>t.type==='income').reduce((s,t)=>s+amountForecast(t),0);
+          const expense=inPeriod.filter(t=>t.type==='expense').reduce((s,t)=>s+amountForecast(t),0);
+          const running=balanceThroughDay(end,c.txs);
+          const isCurrent=c.now.getFullYear()===y&&c.now.getMonth()+1===m&&c.now.getDate()>=start&&c.now.getDate()<=end;
+          const monthWord=fullDate.format(new Date(y,m-1,1)).replace(/^1\s*/, '').replace(/\.$/, '');
+          cards.push(`<article class="period ${isCurrent?'current':''}"><div class="period-top"><div class="period-dates">${start}–${end} ${monthWord}</div>${isCurrent?'<span class="period-badge">Сейчас</span>':''}</div><div class="period-meta">Доходы ${formatMoney(income)} · расходы ${formatMoney(expense)}</div><div class="period-balance ${running<0?'negative':''}">${formatMoney(running)}</div><div class="period-meta">останется после периода</div></article>`);
+        });
+        $('#periods').innerHTML=cards.join('');
+      }
+
+      function ledgerMarkup(list, editable=true, quickPay=false) {
+        if (!list.length) return '<div class="empty"><strong>Здесь пока пусто</strong>Добавьте первую операцию.</div>';
+        const rows=list.map(tx=>{
+          const [statusClass,statusLabel]=statusOf(tx), d=parseDate(tx.date), amount=amountOf(tx);
+          const planHint=tx.actual!==null&&tx.actual!==undefined&&Number(tx.actual)!==Number(tx.plan)?`План ${formatMoney(tx.plan)}`:'';
+          const secondary=[tx.note,planHint].filter(Boolean).join(' · ');
+          const payAction=quickPay&&tx.type==='expense'?`<button class="button small ${tx.paid?'secondary unmark':'primary'} pay-button toggle-paid" aria-pressed="${tx.paid}" aria-label="${tx.paid?'Снять отметку о проведении':'Провести расход'} ${escapeHtml(tx.name)}">${tx.paid?`${icon('i-close')}Снять отметку`:'Провести'}</button>`:'';
+          const movable=editable&&tx.type==='expense';
+          const moveAction=movable?`<button class="icon-button move-tx" aria-label="Перенести ${escapeHtml(tx.name)} в другой период" title="Перенести в другой период">${icon('i-move')}</button>`:'';
+          return `<div class="ledger-row ${statusClass==='overdue'?'overdue':''} ${movable?'draggable-expense':''}" data-id="${tx.id}" ${movable?'draggable="true" title="Перетащите расход в другой период"':''}><time datetime="${tx.date}">${fullDate.format(d)}</time><div class="ledger-title"><strong>${escapeHtml(tx.name)}</strong><small>${escapeHtml(secondary)}</small></div><span>${escapeHtml(tx.category||'Без категории')}</span><span class="money ${tx.type}">${tx.type==='income'?'+':'−'}${formatMoney(amount)}</span><span class="status ${statusClass}">${statusLabel}</span><div class="row-actions">${payAction}${moveAction}${editable?`<button class="icon-button edit-tx" aria-label="Редактировать ${escapeHtml(tx.name)}">${icon('i-edit')}</button>`:''}</div></div>`;
+        }).join('');
+        return `<div class="ledger-row header"><span>Дата</span><span>Операция</span><span>Категория</span><span>Сумма</span><span>Статус</span><span></span></div>${rows}`;
+      }
+
+      function renderLedger(container, list, editable=true, quickPay=false) {
+        container.innerHTML=ledgerMarkup(list,editable,quickPay);
+      }
+
+      function renderTransactions() {
+        const filters=[['all','Все'],['income','Доходы'],['expense','Расходы'],['unpaid','Не оплачено']];
+        $('#filters').innerHTML=filters.map(([id,label])=>`<button class="chip ${state.filter===id?'active':''}" data-filter="${id}">${label}</button>`).join('');
+        let list=sortTx(month().transactions);
+        if(state.filter==='income'||state.filter==='expense') list=list.filter(t=>t.type===state.filter);
+        if(state.filter==='unpaid') list=list.filter(t=>!t.paid);
+        $('#transactionCount').textContent=`${list.length} ${plural(list.length,'операция','операции','операций')}`;
+        renderBudgetCalendar();
+        renderTransactionPeriods($('#transactionsList'),list);
+        renderNextMonthPreview();
+      }
+
+      function adjacentMonthKey(key, delta=1){
+        const [y,m]=key.split('-').map(Number),d=new Date(y,m-1+delta,1);
+        return monthKeyFrom(d);
+      }
+
+      function renderNextMonthPreview(){
+        const key=adjacentMonthKey(state.selectedMonth,1);
+        generateRecurring(state,key);
+        const data=state.months[key];
+        const d=parseDate(`${key}-01`);
+        $('#nextMonthPreviewTitle').textContent=`Следующий месяц — ${monthFormat.format(d)}`;
+        $('#nextMonthPreviewSubtitle').textContent='Плановые операции, которые уже есть в бюджете.';
+        const list=sortTx(data.transactions||[]);
+        $('#nextMonthTransactions').innerHTML=ledgerMarkup(list,false,false);
+        save();
+      }
+
+      function renderBudgetCalendar(){
+        const [year,mon]=state.selectedMonth.split('-').map(Number),lastDay=new Date(year,mon,0).getDate(),firstOffset=(new Date(year,mon-1,1).getDay()+6)%7,txs=sortTx(month().transactions),todayDate=effectiveToday(),weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+        const cells=weekdays.map(day=>`<div class="calendar-weekday">${day}</div>`);
+        for(let i=0;i<firstOffset;i++)cells.push('<div class="calendar-empty" aria-hidden="true"></div>');
+        for(let day=1;day<=lastDay;day++){
+          const daily=txs.filter(tx=>parseDate(tx.date).getDate()===day),income=daily.filter(tx=>tx.type==='income').reduce((sum,tx)=>sum+amountForecast(tx),0),expense=daily.filter(tx=>tx.type==='expense').reduce((sum,tx)=>sum+amountForecast(tx),0),balance=balanceThroughDay(day,txs),isToday=todayDate.getFullYear()===year&&todayDate.getMonth()+1===mon&&todayDate.getDate()===day;
+          cells.push(`<article class="calendar-day ${income?'has-income':''} ${isToday?'today':''}" aria-label="${day} число: доходы ${formatMoney(income)}, расходы ${formatMoney(expense)}, остаток ${formatMoney(balance)}"><div class="calendar-date"><span>${day}</span>${daily.length?`<small>${daily.length} ${plural(daily.length,'операция','операции','операций')}</small>`:''}</div><div class="calendar-flow">${income?`<span class="income">+ ${formatMoney(income)}</span>`:''}${expense?`<span class="expense">− ${formatMoney(expense)}</span>`:''}</div><div class="calendar-balance">Остаток<strong class="${balance<0?'negative':''}">${formatMoney(balance)}</strong></div></article>`);
+        }
+        $('#budgetCalendar').innerHTML=cells.join('');
+      }
+
+      function renderTransactionPeriods(container, visibleList) {
+        const all=sortTx(month().transactions), [y,m]=state.selectedMonth.split('-').map(Number), ranges=getPeriodRanges(), now=effectiveToday();
+        if(!ranges.length){container.innerHTML=`<div class="ledger">${ledgerMarkup(visibleList,true,true)}</div>`;return;}
+        const blocks=[];
+        let carry=0;
+        ranges.forEach(({start,end},index)=>{
+          const allInPeriod=all.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
+          const visibleInPeriod=visibleList.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
+          const income=allInPeriod.filter(t=>t.type==='income').reduce((sum,t)=>sum+amountForecast(t),0);
+          const expenses=allInPeriod.filter(t=>t.type==='expense').reduce((sum,t)=>sum+amountForecast(t),0);
+          const calculated=carry+income-expenses;
+          const actual=periodActualBalance(start);
+          const running=actual!==null?actual:calculated;
+          carry=running;
+          if(!visibleInPeriod.length&&state.filter!=='all')return;
+          const monthWord=fullDate.format(new Date(y,m-1,1)).replace(/^1\s*/, '').replace(/\.$/, '');
+          const nextDate=index<ranges.length-1?`${ranges[index+1].start} ${monthWord}`:'конца месяца';
+          const deleteButton=state.filter==='all'?`<button class="button danger-text small delete-period" data-period-start="${start}" data-period-end="${end}">${icon('i-trash')}Удалить период</button>`:'';
+          const isCurrent=now.getFullYear()===y&&now.getMonth()+1===m&&now.getDate()>=start&&now.getDate()<=end;
+          const key=`${state.selectedMonth}:${start}-${end}`;
+          const shouldOpen=openTransactionPeriods.has(key)||(!openTransactionPeriods.size&&isCurrent);
+          blocks.push(`<details class="period-group" data-period-key="${key}" data-period-start="${start}" data-period-end="${end}" ${shouldOpen?'open':''}><summary class="period-group-summary"><div class="period-summary-main"><h2>${start}–${end} ${monthWord}</h2><p>После поступления ${start} ${monthWord} · до ${nextDate}</p></div><div class="period-summary-metric"><span>Поступило</span><strong>${formatMoney(income)}</strong></div><div class="period-summary-metric"><span>Расходы</span><strong>${formatMoney(expenses)}</strong></div><div class="period-summary-metric ending"><span>Остаток</span><strong class="${running<0?'negative':''}">${formatMoney(running)}</strong></div>${icon('i-right').replace('class="icon"','class="icon period-summary-chevron"')}</summary><div class="period-group-body"><div class="period-group-heading"><div><h2>${start}–${end} ${monthWord}</h2><p>После поступления ${start} ${monthWord} · до ${nextDate}</p></div><div class="period-heading-actions"><div class="income-label">Поступило ${formatMoney(income)}</div><div class="period-heading-buttons"><button class="button secondary small add-period-expense" data-period-start="${start}" data-period-end="${end}">${icon('i-plus')}Добавить расход</button>${deleteButton}</div></div></div><div class="ledger">${ledgerMarkup(visibleInPeriod,true,true)}</div><div class="period-subtotal"><span>Доходы периода<strong>${formatMoney(income)}</strong></span><span>Расходы периода<strong>${formatMoney(expenses)}</strong></span><span class="period-ending">Остаток к следующему поступлению<strong class="${running<0?'negative':''}">${formatMoney(running)}</strong><div class="period-ending-actions">${actual!==null?`<small>Расчётно ${formatMoney(calculated)} · <span class="period-actual-value">факт внесён</span></small>`:''}<button class="period-actual-button set-period-actual" type="button" data-period-start="${start}" data-period-calculated="${calculated}">${actual!==null?'Изменить факт':'Внести фактический остаток'}</button></div></span></div></div></details>`);
+        });
+        container.innerHTML=blocks.length?blocks.join(''):'<div class="panel empty"><strong>Нет операций по выбранному фильтру</strong>Выберите другой фильтр или добавьте операцию.</div>';
+      }
+
+      function setPeriodActual(start, calculated) {
+        const current=periodActualBalance(start);
+        const message=current===null
+          ? `Введите фактический остаток на конец периода. Расчётный остаток: ${formatMoney(calculated)}.`
+          : `Измените фактический остаток. Оставьте поле пустым, чтобы вернуться к расчётному значению ${formatMoney(calculated)}.`;
+        const result=prompt(message,current===null?String(Math.round(calculated)):String(current));
+        if(result===null)return;
+        const trimmed=String(result).trim().replace(/\s/g,'').replace(',','.');
+        month().periodActualBalances=month().periodActualBalances||{};
+        const key=periodActualKey(start);
+        if(trimmed===''){
+          delete month().periodActualBalances[key];
+          if(!Object.keys(month().periodActualBalances).length)delete month().periodActualBalances;
+          save();render();showToast('Фактический остаток сброшен');return;
+        }
+        const amount=Number(trimmed);
+        if(!Number.isFinite(amount)){showToast('Введите корректную сумму');return;}
+        month().periodActualBalances[key]=amount;
+        save();render();showToast('Фактический остаток сохранён');
+      }
+
+      function renderRecurring() {
+        const incomeRules=state.recurringIncome||[];
+        const incomeTotal=incomeRules.filter(rule=>rule.active).reduce((sum,rule)=>sum+recurringIncomeMonthlyAmount(rule,state.selectedMonth),0);
+        $('#recurringIncomeGrandTotal').textContent=formatMoney(incomeTotal);
+        if(!incomeRules.length){
+          $('#recurringIncomeList').innerHTML='<div class="panel empty"><strong>Пока нет постоянных доходов</strong>Добавьте зарплату или другое регулярное поступление.</div>';
+        }else{
+          const categories=[...new Set(incomeRules.map(r=>String(r.category||'Зарплата').trim()||'Зарплата'))].sort((a,b)=>a.localeCompare(b,'ru'));
+          $('#recurringIncomeList').innerHTML=categories.map((category,index)=>{
+            const list=incomeRules.filter(r=>(String(r.category||'Зарплата').trim()||'Зарплата')===category).sort((a,b)=>(recurringDays(a)[0]||32)-(recurringDays(b)[0]||32)||a.name.localeCompare(b.name));
+            const active=list.filter(rule=>rule.active),sectionTotal=active.reduce((sum,rule)=>sum+recurringIncomeMonthlyAmount(rule,state.selectedMonth),0),sectionId=`recurring-income-section-${index}`,openKey=`income:${category}`;
+            const cards=list.map(r=>{
+              if(r.salaryAuto){
+                const split=salarySplitForMonth(r,state.selectedMonth),source=split.exact?'производственный календарь РФ 2026':'приблизительно: Пн–Пт';
+                const shared=`Полная зарплата ${formatMoney(split.monthlySalary)} · ${split.total} раб. дн. · ${source}${split.manual?' · сумма скорректирована вручную для этого месяца':''}`;
+                const controls=`<label class="switch" title="${r.active?'Активен':'Выключен'}"><input class="toggle-recurring-income" type="checkbox" ${r.active?'checked':''} aria-label="${r.active?'Выключить':'Включить'} ${escapeHtml(r.name)}"><span></span></label><button class="icon-button edit-recurring-income" aria-label="Редактировать ${escapeHtml(r.name)}">${icon('i-edit')}</button>`;
+                return `<article class="recurring-item ${r.active?'':'is-inactive'}" data-income-id="${r.id}"><div class="date-box"><strong>${split.firstPayDay}</strong>число</div><div><h3>${escapeHtml(r.name)} — зарплата</h3><p>${split.firstHalf} рабочих дней за 1–15 · ${escapeHtml(shared)}</p></div><div class="recurring-side"><span class="money income">+${formatMoney(split.firstAmount)}</span><small>первое поступление</small>${controls}</div></article><article class="recurring-item ${r.active?'':'is-inactive'}" data-income-id="${r.id}"><div class="date-box"><strong>${split.secondPayDay}</strong>число</div><div><h3>${escapeHtml(r.name)} — аванс</h3><p>${split.secondHalf} рабочих дней за 16–конец · ${escapeHtml(shared)}</p></div><div class="recurring-side"><span class="money income">+${formatMoney(split.secondAmount)}</span><small>второе поступление</small>${controls}</div></article>`;
+              }
+              const days=recurringDays(r),dayLabel=days.join(', '),monthly=Number(r.amount||0)*days.length;
+              return `<article class="recurring-item ${r.active?'':'is-inactive'}" data-income-id="${r.id}"><div class="date-box"><strong>${dayLabel}</strong>${days.length>1?'числа':'число'}</div><div><h3>${escapeHtml(r.name)}</h3><p>${formatMoney(r.amount)} за поступление · ${days.length} ${plural(days.length,'раз','раза','раз')} в месяц · с ${formatMonthShort(r.startMonth||state.selectedMonth)}</p></div><div class="recurring-side"><span class="money income">+${formatMoney(monthly)}</span><small>за месяц</small><label class="switch" title="${r.active?'Активен':'Выключен'}"><input class="toggle-recurring-income" type="checkbox" ${r.active?'checked':''} aria-label="${r.active?'Выключить':'Включить'} ${escapeHtml(r.name)}"><span></span></label><button class="icon-button edit-recurring-income" aria-label="Редактировать ${escapeHtml(r.name)}">${icon('i-edit')}</button></div></article>`;
+            }).join('');
+            return `<details class="recurring-section" data-recurring-section="${escapeHtml(openKey)}" ${openRecurringSections.has(openKey)?'open':''}><summary class="recurring-section-summary" id="${sectionId}"><span class="recurring-section-icon">${icon('i-repeat')}</span><span class="recurring-section-title"><strong>${escapeHtml(category)}</strong><span>${active.length} активных из ${list.length}</span></span><span class="recurring-section-amount"><strong>${formatMoney(sectionTotal)}</strong><span>за месяц</span></span>${icon('i-right').replace('class="icon"','class="icon recurring-chevron"')}</summary><div class="recurring-grid" aria-labelledby="${sectionId}">${cards}</div></details>`;
+          }).join('');
+        }
+
+        const order=['Кредиты','Коммунальные','Продукты','Транспорт','Дети','Личные расходы','Накопления','Прочее'];
+        const grouped=new Map(order.map(section=>[section,[]]));
+        state.recurring.forEach(rule=>grouped.get(recurringSection(rule.category)).push(rule));
+        const grandTotal=state.recurring.filter(rule=>rule.active).reduce((sum,rule)=>sum+Number(rule.amount||0)*recurringDays(rule).length,0);
+        $('#recurringGrandTotal').textContent=formatMoney(grandTotal);
+        $('#recurringList').innerHTML=order.filter(section=>grouped.get(section).length).map(section=>{
+          const list=grouped.get(section).sort((a,b)=>(recurringDays(a)[0]||32)-(recurringDays(b)[0]||32)||a.name.localeCompare(b.name));
+          const active=list.filter(rule=>rule.active),sectionTotal=active.reduce((sum,rule)=>sum+Number(rule.amount||0)*recurringDays(rule).length,0),sectionId=`recurring-section-${order.indexOf(section)}`,openKey=`expense:${section}`;
+          const cards=list.map(r=>{const days=recurringDays(r),dayLabel=days.join(', '),monthly=Number(r.amount||0)*days.length;return `<article class="recurring-item ${r.active?'':'is-inactive'}" data-id="${r.id}"><div class="date-box"><strong>${dayLabel}</strong>${days.length>1?'числа':'число'}</div><div><h3>${escapeHtml(r.name)}</h3><p>${formatMoney(r.amount)} за платёж · ${days.length} ${plural(days.length,'раз','раза','раз')} в месяц · с ${formatMonthShort(r.startMonth||'2026-09')}</p></div><div class="recurring-side"><span class="money expense">${formatMoney(monthly)}</span><small>за месяц</small><label class="switch" title="${r.active?'Активен':'Выключен'}"><input class="toggle-recurring" type="checkbox" ${r.active?'checked':''} aria-label="${r.active?'Выключить':'Включить'} ${escapeHtml(r.name)}"><span></span></label><button class="icon-button edit-recurring" aria-label="Редактировать ${escapeHtml(r.name)}">${icon('i-edit')}</button></div></article>`;}).join('');
+          return `<details class="recurring-section" data-recurring-section="${escapeHtml(openKey)}" ${openRecurringSections.has(openKey)?'open':''}><summary class="recurring-section-summary" id="${sectionId}"><span class="recurring-section-icon">${icon('i-repeat')}</span><span class="recurring-section-title"><strong>${section}</strong><span>${active.length} активных из ${list.length}</span></span><span class="recurring-section-amount"><strong>${formatMoney(sectionTotal)}</strong><span>за месяц</span></span>${icon('i-right').replace('class="icon"','class="icon recurring-chevron"')}</summary><div class="recurring-grid" aria-labelledby="${sectionId}">${cards}</div></details>`;
+        }).join('');
+      }
+
+      function changeMonth(delta) {
+        const d=monthDate(); d.setMonth(d.getMonth()+delta); state.selectedMonth=monthKeyFrom(d); generateRecurring(state,state.selectedMonth); save(); render();
+      }
+
+      function openTransaction(type='expense', id=null, period=null) {
+        editingTransaction=id;
+        transactionPeriod=id?null:period;
+        const dialog=$('#transactionDialog'), form=$('#transactionForm'); form.reset(); clearErrors(form);
+        const tx=id?month().transactions.find(t=>t.id===id):null;
+        $('#transactionTitle').textContent=tx?'Редактирование операции':transactionPeriod?`Расход в период ${transactionPeriod.start}–${transactionPeriod.end}`:'Новая операция';
+        $('#deleteTransaction').hidden=!tx;
+        const [year,mon]=state.selectedMonth.split('-').map(Number);
+        const periodDate=transactionPeriod?iso(year,mon,transactionPeriod.start):defaultDate();
+        const data=tx||{type,name:'',date:periodDate,category:type==='income'?'Зарплата':'',plan:'',actual:'',paid:false,note:''};
+        const templateField=$('#recurringTemplateField'), templateSelect=$('#txRecurringTemplate');
+        templateField.hidden=Boolean(tx)||type!=='expense';
+        $$('input[name="type"]',form).forEach(input=>input.disabled=Boolean(transactionPeriod)&&input.value==='income');
+        templateSelect.innerHTML='<option value="">Не из списка — заполнить вручную</option>'+state.recurring.filter(r=>r.active).sort((a,b)=>a.name.localeCompare(b.name)).map(r=>`<option value="${r.id}">${escapeHtml(r.name)} — ${formatMoney(r.amount)} (${recurringDays(r).join(', ')})</option>`).join('');
+        form.elements.type.value=data.type; form.elements.name.value=data.name; form.elements.date.value=data.date; form.elements.category.value=data.category||''; form.elements.plan.value=data.plan; form.elements.actual.value=data.actual??''; form.elements.paid.checked=Boolean(data.paid); form.elements.note.value=data.note||'';
+        if(transactionPeriod){
+          form.elements.date.min=iso(year,mon,transactionPeriod.start);
+          form.elements.date.max=iso(year,mon,transactionPeriod.end);
+        }else{
+          const nextKey=adjacentMonthKey(state.selectedMonth,1),[nextYear,nextMon]=nextKey.split('-').map(Number);
+          form.elements.date.min=iso(year,mon,1);
+          form.elements.date.max=iso(nextYear,nextMon,new Date(nextYear,nextMon,0).getDate());
+        }
+        dialog.showModal(); setTimeout(()=>form.elements.name.focus(),0);
+      }
+
+      function openRecurring(id=null) {
+        editingRecurring=id; const dialog=$('#recurringDialog'), form=$('#recurringForm'); form.reset(); clearErrors(form);
+        const r=id?state.recurring.find(x=>x.id===id):null; $('#recurringTitle').textContent=r?'Редактирование постоянного расхода':'Новый постоянный расход'; $('#deleteRecurring').hidden=!r;
+        form.elements.name.value=r?.name||''; form.elements.days.value=r?recurringDays(r).join(', '):''; form.elements.amount.value=r?.amount??''; form.elements.category.value=r?recurringSection(r.category):'Прочее';
+        dialog.showModal(); setTimeout(()=>form.elements.name.focus(),0);
+      }
+
+      function updateSalaryResultTotal(){
+        const form=$('#recurringIncomeForm');
+        const first=Number(form.elements.salaryFirstAmount.value||0),second=Number(form.elements.salarySecondAmount.value||0);
+        $('#recIncomeSalaryResultTotal').textContent=`Итого по двум поступлениям: ${formatMoney(first+second)}.`;
+      }
+
+      function setRecurringIncomeSalaryResult(split){
+        const form=$('#recurringIncomeForm'),source=split.exact?'Учтён производственный календарь РФ 2026.':'Для этого года используется приблизительный календарь Пн–Пт.';
+        form.elements.salaryFirstAmount.value=Math.round(split.firstAmount);
+        form.elements.salarySecondAmount.value=Math.round(split.secondAmount);
+        $('#recIncomeSalaryPreviewText').textContent=`${monthFormat.format(monthDate())}: ${split.total} рабочих дней — ${split.firstHalf} за 1–15 и ${split.secondHalf} за 16–конец. ${source}`;
+        recurringIncomeSalaryCalculated=true;
+        updateRecurringIncomeModeUI();
+        updateSalaryResultTotal();
+      }
+
+      function calculateRecurringIncomeSalary(){
+        const form=$('#recurringIncomeForm');clearErrors(form);
+        const monthlySalary=Number(form.elements.monthlySalary.value),salaryPayDayFirst=Number(form.elements.salaryPayDayFirst.value),salaryPayDaySecond=Number(form.elements.salaryPayDaySecond.value);
+        if(!Number.isFinite(monthlySalary)||monthlySalary<0){setError(form,'monthlySalary','Введите полную зарплату от 0 ₽.');return;}
+        if(!Number.isInteger(salaryPayDayFirst)||salaryPayDayFirst<1||salaryPayDayFirst>31){setError(form,'salaryPayDayFirst','Укажите число от 1 до 31.');return;}
+        if(!Number.isInteger(salaryPayDaySecond)||salaryPayDaySecond<1||salaryPayDaySecond>31){setError(form,'salaryPayDaySecond','Укажите число от 1 до 31.');return;}
+        if(salaryPayDayFirst===salaryPayDaySecond){setError(form,'salaryPayDaySecond','Даты двух выплат должны отличаться.');return;}
+        const split=salarySplitForMonth({monthlySalary,salaryPayDayFirst,salaryPayDaySecond},state.selectedMonth,{ignoreManual:true});
+        setRecurringIncomeSalaryResult(split);
+      }
+
+      function invalidateRecurringIncomeSalaryCalculation(){
+        if(!$('#recurringIncomeForm').elements.salaryAuto.checked)return;
+        recurringIncomeSalaryCalculated=false;
+        updateRecurringIncomeModeUI();
+      }
+
+      function updateRecurringIncomeModeUI(){
+        const form=$('#recurringIncomeForm'),salaryAuto=form.elements.salaryAuto.checked;
+        $$('[data-income-regular]',form).forEach(el=>el.hidden=salaryAuto);
+        $$('[data-income-salary]',form).forEach(el=>el.hidden=!salaryAuto);
+        form.elements.days.required=!salaryAuto;form.elements.amount.required=!salaryAuto;
+        form.elements.monthlySalary.required=salaryAuto;form.elements.salaryPayDayFirst.required=salaryAuto;form.elements.salaryPayDaySecond.required=salaryAuto;
+        form.elements.salaryFirstAmount.required=salaryAuto&&recurringIncomeSalaryCalculated;form.elements.salarySecondAmount.required=salaryAuto&&recurringIncomeSalaryCalculated;
+        if(!salaryAuto){
+          $('#recIncomeSalaryCalculateWrap').hidden=true;$('#recIncomeSalaryResult').hidden=true;$('#recalculateRecurringIncomeSalary').hidden=true;$('#saveRecurringIncome').hidden=false;return;
+        }
+        $('#recIncomeSalaryCalculateWrap').hidden=recurringIncomeSalaryCalculated;
+        $('#recIncomeSalaryResult').hidden=!recurringIncomeSalaryCalculated;
+        $('#recalculateRecurringIncomeSalary').hidden=!recurringIncomeSalaryCalculated;
+        $('#saveRecurringIncome').hidden=!recurringIncomeSalaryCalculated;
+      }
+
+      function openRecurringIncome(id=null) {
+        editingRecurringIncome=id; recurringIncomeSalaryCalculated=false; const dialog=$('#recurringIncomeDialog'), form=$('#recurringIncomeForm'); form.reset(); clearErrors(form);
+        const r=id?(state.recurringIncome||[]).find(x=>x.id===id):null; $('#recurringIncomeTitle').textContent=r?'Редактирование постоянного дохода':'Новый постоянный доход'; $('#deleteRecurringIncome').hidden=!r;
+        form.elements.name.value=r?.name||''; form.elements.salaryAuto.checked=Boolean(r?.salaryAuto); form.elements.days.value=r&&!r.salaryAuto?recurringDays(r).join(', '):''; form.elements.amount.value=r&&!r.salaryAuto?(r?.amount??''):''; form.elements.monthlySalary.value=r?.monthlySalary??''; form.elements.salaryPayDayFirst.value=r?.salaryPayDayFirst??15; form.elements.salaryPayDaySecond.value=r?.salaryPayDaySecond??30; form.elements.category.value=r?.category||'Зарплата';
+        if(r?.salaryAuto){const split=salarySplitForMonth(r,state.selectedMonth);setRecurringIncomeSalaryResult(split);}else updateRecurringIncomeModeUI();
+        dialog.showModal(); setTimeout(()=>form.elements.name.focus(),0);
+      }
+
+      function defaultDate(){const [y,m]=state.selectedMonth.split('-').map(Number);const d=selectedToday(state.selectedMonth);return iso(y,m,monthKeyFrom(d)===state.selectedMonth?d.getDate():1);}
+      function closeDialog(dialog){dialog.close();}
+      function clearErrors(form){$$('.error-text',form).forEach(e=>e.textContent='');}
+      function setError(form,name,text){const el=$(`[data-error="${name}"]`,form);if(el)el.textContent=text;form.elements[name]?.focus();}
+
+      function submitTransaction(event) {
+        event.preventDefault(); const form=event.currentTarget, fd=new FormData(form); clearErrors(form);
+        const name=String(fd.get('name')||'').trim(), date=String(fd.get('date')||''), plan=Number(fd.get('plan'));
+        const targetMonth=date.slice(0,7),nextMonth=adjacentMonthKey(state.selectedMonth,1);
+        if(!name){setError(form,'name','Введите название.');return;}
+        if(!date||(!transactionPeriod&&targetMonth!==state.selectedMonth&&targetMonth!==nextMonth)){setError(form,'date','Выберите дату в текущем или следующем месяце.');return;}
+        if(transactionPeriod){const day=parseDate(date).getDate();if(targetMonth!==state.selectedMonth||day<transactionPeriod.start||day>transactionPeriod.end){setError(form,'date',`Выберите дату с ${transactionPeriod.start} по ${transactionPeriod.end} число.`);return;}}
+        if(!Number.isFinite(plan)||plan<0){setError(form,'plan','Введите сумму от 0 ₽.');return;}
+        const tx={id:editingTransaction||uid('tx'),type:fd.get('type'),name,date,category:String(fd.get('category')||'').trim(),plan,actual:fd.get('actual')===''?null:Number(fd.get('actual')),paid:form.elements.paid.checked,note:String(fd.get('note')||'').trim(),templateId:String(fd.get('templateId')||'')||undefined};
+        if(editingTransaction){
+          const sourceMonth=month();
+          const index=sourceMonth.transactions.findIndex(t=>t.id===editingTransaction);
+          const original=sourceMonth.transactions[index];
+          tx.recurringId=original?.recurringId;tx.recurringDay=original?.recurringDay;tx.templateId=original?.templateId;
+          if(targetMonth!==state.selectedMonth){
+            if(original?.recurringId)suppressRecurringInstance(sourceMonth,original);
+            sourceMonth.transactions.splice(index,1);
+            if(sourceMonth.cashBaseline)sourceMonth.cashBaseline.includedTransactionIds=(sourceMonth.cashBaseline.includedTransactionIds||[]).filter(id=>id!==editingTransaction);
+            if(!state.months[targetMonth])state.months[targetMonth]={openingBalance:0,transactions:[]};
+            generateRecurring(state,targetMonth);
+            if(tx.recurringId){
+              tx.note=[tx.note,'Перенесено из предыдущего месяца'].filter(Boolean).join(' · ');
+              delete tx.recurringId;delete tx.recurringDay;
+            }
+            state.months[targetMonth].transactions.push(tx);
+          }else{
+            sourceMonth.transactions[index]=tx;
+          }
+        }else{
+          if(targetMonth!==state.selectedMonth){
+            if(!state.months[targetMonth])state.months[targetMonth]={openingBalance:0,transactions:[]};
+            generateRecurring(state,targetMonth);
+            state.months[targetMonth].transactions.push(tx);
+          }else month().transactions.push(tx);
+        }
+        save(); closeDialog($('#transactionDialog')); render(); showToast(editingTransaction&&targetMonth!==state.selectedMonth?'Операция перенесена в следующий месяц':editingTransaction?'Операция обновлена':'Операция добавлена');
+      }
+
+      function submitRecurring(event) {
+        event.preventDefault(); const form=event.currentTarget, fd=new FormData(form); clearErrors(form);
+        const name=String(fd.get('name')||'').trim(), daysRaw=String(fd.get('days')||'').trim(), amount=Number(fd.get('amount'));
+        const dayParts=daysRaw.split(/[\s,;]+/).filter(Boolean), days=[...new Set(dayParts.map(Number))].sort((a,b)=>a-b);
+        const validDays=dayParts.length>0&&dayParts.every(part=>/^\d+$/.test(part))&&days.every(day=>Number.isInteger(day)&&day>=1&&day<=31);
+        if(!name){setError(form,'name','Введите название.');return;} if(!validDays){setError(form,'days','Укажите дни от 1 до 31 через запятую.');return;} if(!Number.isFinite(amount)||amount<0){setError(form,'amount','Введите сумму от 0 ₽.');return;}
+        if(editingRecurring){const r=state.recurring.find(x=>x.id===editingRecurring);Object.assign(r,{name,days,day:days[0],amount,category:String(fd.get('category')||'').trim()}); updateFutureInstances(r);}else state.recurring.push({id:uid('rec'),name,days,day:days[0],amount,category:String(fd.get('category')||'').trim(),active:true,startMonth:state.selectedMonth});
+        save(); closeDialog($('#recurringDialog')); render(); showToast(editingRecurring?'Постоянный расход обновлён':'Постоянный расход добавлен');
+      }
+
+      function submitRecurringIncome(event) {
+        event.preventDefault(); const form=event.currentTarget, fd=new FormData(form); clearErrors(form);
+        const name=String(fd.get('name')||'').trim(),category=String(fd.get('category')||'Зарплата').trim()||'Зарплата',salaryAuto=form.elements.salaryAuto.checked;
+        if(!name){setError(form,'name','Введите название.');return;}
+        let data;
+        if(salaryAuto){
+          const monthlySalary=Number(fd.get('monthlySalary')),salaryPayDayFirst=Number(fd.get('salaryPayDayFirst')),salaryPayDaySecond=Number(fd.get('salaryPayDaySecond'));
+          const salaryFirstAmount=Number(fd.get('salaryFirstAmount')),salarySecondAmount=Number(fd.get('salarySecondAmount'));
+          if(!recurringIncomeSalaryCalculated){setError(form,'monthlySalary','Сначала нажмите «Рассчитать».');return;}
+          if(!Number.isFinite(monthlySalary)||monthlySalary<0){setError(form,'monthlySalary','Введите полную зарплату от 0 ₽.');return;}
+          if(!Number.isInteger(salaryPayDayFirst)||salaryPayDayFirst<1||salaryPayDayFirst>31){setError(form,'salaryPayDayFirst','Укажите число от 1 до 31.');return;}
+          if(!Number.isInteger(salaryPayDaySecond)||salaryPayDaySecond<1||salaryPayDaySecond>31){setError(form,'salaryPayDaySecond','Укажите число от 1 до 31.');return;}
+          if(salaryPayDayFirst===salaryPayDaySecond){setError(form,'salaryPayDaySecond','Даты двух выплат должны отличаться.');return;}
+          if(!Number.isFinite(salaryFirstAmount)||salaryFirstAmount<0){setError(form,'salaryFirstAmount','Введите сумму от 0 ₽.');return;}
+          if(!Number.isFinite(salarySecondAmount)||salarySecondAmount<0){setError(form,'salarySecondAmount','Введите сумму от 0 ₽.');return;}
+          const existing=editingRecurringIncome?(state.recurringIncome||[]).find(x=>x.id===editingRecurringIncome):null;
+          const salaryManualSplits={...(existing?.salaryManualSplits||{})};
+          const calculated=salarySplitForMonth({monthlySalary,salaryPayDayFirst,salaryPayDaySecond},state.selectedMonth,{ignoreManual:true});
+          const firstRounded=Math.round(salaryFirstAmount),secondRounded=Math.round(salarySecondAmount);
+          if(firstRounded===calculated.calculatedFirstAmount&&secondRounded===calculated.calculatedSecondAmount)delete salaryManualSplits[state.selectedMonth];
+          else salaryManualSplits[state.selectedMonth]={first:firstRounded,second:secondRounded};
+          data={name,category,salaryAuto:true,monthlySalary:Math.round(monthlySalary),salaryPayDayFirst,salaryPayDaySecond,days:[salaryPayDayFirst,salaryPayDaySecond],day:salaryPayDayFirst,amount:0,salaryManualSplits};
+        }else{
+          const daysRaw=String(fd.get('days')||'').trim(),amount=Number(fd.get('amount')),dayParts=daysRaw.split(/[\s,;]+/).filter(Boolean),days=[...new Set(dayParts.map(Number))].sort((a,b)=>a-b);
+          const validDays=dayParts.length>0&&dayParts.every(part=>/^\d+$/.test(part))&&days.every(day=>Number.isInteger(day)&&day>=1&&day<=31);
+          if(!validDays){setError(form,'days','Укажите дни от 1 до 31 через запятую.');return;} if(!Number.isFinite(amount)||amount<0){setError(form,'amount','Введите сумму от 0 ₽.');return;}
+          data={name,category,salaryAuto:false,days,day:days[0],amount};
+        }
+        if(!Array.isArray(state.recurringIncome))state.recurringIncome=[];
+        if(editingRecurringIncome){const r=state.recurringIncome.find(x=>x.id===editingRecurringIncome);Object.assign(r,data);if(!salaryAuto){delete r.monthlySalary;delete r.salaryPayDayFirst;delete r.salaryPayDaySecond;delete r.salaryManualSplits;}updateFutureIncomeInstances(r);}else state.recurringIncome.push({id:uid('rinc'),...data,active:true,startMonth:state.selectedMonth});
+        generateRecurring(state,state.selectedMonth);save();closeDialog($('#recurringIncomeDialog'));render();showToast(editingRecurringIncome?'Постоянный доход обновлён':'Постоянный доход добавлен');
+      }
+
+      function updateFutureIncomeInstances(r){Object.entries(state.months).forEach(([key,m])=>{if(key<state.selectedMonth)return;m.transactions=m.transactions.filter(t=>t.recurringId!==r.id||t.paid);generateRecurring(state,key);});}
+
+      function deleteRecurringIncome(){if(!editingRecurringIncome)return;if(confirm('Удалить постоянный доход и его непроведённые будущие операции?')){state.recurringIncome=(state.recurringIncome||[]).filter(r=>r.id!==editingRecurringIncome);Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==editingRecurringIncome||t.paid);});editingRecurringIncome=null;save();closeDialog($('#recurringIncomeDialog'));render();showToast('Постоянный доход удалён');}}
+
+      function updateFutureInstances(r){const days=recurringDays(r);Object.entries(state.months).forEach(([key,m])=>{if(key<state.selectedMonth)return;const [y,mo]=key.split('-').map(Number),last=new Date(y,mo,0).getDate();m.transactions=m.transactions.filter(t=>t.recurringId!==r.id||t.paid||days.includes(Number(t.recurringDay||parseDate(t.date).getDate())));m.transactions.filter(t=>t.recurringId===r.id&&!t.paid).forEach(t=>{const day=Number(t.recurringDay||parseDate(t.date).getDate());Object.assign(t,{recurringDay:day,name:r.name,category:r.category,plan:r.amount,date:iso(y,mo,Math.min(day,last))});});generateRecurring(state,key);});}
+      function deleteTransaction(){
+        if(!editingTransaction)return;
+        if(confirm('Удалить эту операцию?')){
+          const monthData=month();
+          const tx=monthData.transactions.find(t=>t.id===editingTransaction);
+          if(tx?.recurringId)suppressRecurringInstance(monthData,tx);
+          monthData.transactions=monthData.transactions.filter(t=>t.id!==editingTransaction);
+          if(monthData.cashBaseline)monthData.cashBaseline.includedTransactionIds=(monthData.cashBaseline.includedTransactionIds||[]).filter(id=>id!==editingTransaction);
+          editingTransaction=null;
+          save();closeDialog($('#transactionDialog'));render();showToast('Операция удалена');
+        }
+      }
+      function togglePaid(id){const tx=month().transactions.find(t=>t.id===id);if(!tx||tx.type!=='expense')return;tx.paid=!tx.paid;if(tx.paid&&(tx.actual===null||tx.actual===undefined||tx.actual===''))tx.actual=Number(tx.plan||0);save();render();showToast(tx.paid?`Расход «${tx.name}» проведён`:`Расход «${tx.name}» возвращён в план`);}
+      function deleteRecurring(){if(!editingRecurring)return;if(confirm('Удалить постоянный расход и его неоплаченные будущие операции?')){state.recurring=state.recurring.filter(r=>r.id!==editingRecurring);Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==editingRecurring||t.paid);});save();closeDialog($('#recurringDialog'));render();showToast('Постоянный расход удалён');}}
+
+      function deletePeriod(start,end){
+        const monthData=month();
+        const affected=monthData.transactions.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
+        if(!affected.length)return;
+        const incomes=affected.filter(t=>t.type==='income').length,expenses=affected.filter(t=>t.type==='expense').length;
+        if(!confirm(`Удалить период ${start}–${end} и все его операции?\n\nБудут удалены: ${incomes} ${plural(incomes,'доход','дохода','доходов')} и ${expenses} ${plural(expenses,'расход','расхода','расходов')}.`))return;
+        affected.filter(t=>t.recurringId).forEach(tx=>suppressRecurringInstance(monthData,tx));
+        const ids=new Set(affected.map(t=>t.id));
+        monthData.transactions=monthData.transactions.filter(t=>!ids.has(t.id));
+        if(monthData.cashBaseline)monthData.cashBaseline.includedTransactionIds=(monthData.cashBaseline.includedTransactionIds||[]).filter(id=>!ids.has(id));
+        save();render();showToast(`Период ${start}–${end} удалён`);
+      }
+
+      function applyMove(id,start,end){
+        const tx=month().transactions.find(t=>t.id===id);
+        if(!tx||tx.type!=='expense')return null;
+        const oldDay=parseDate(tx.date).getDate();
+        // Для старых сохранённых постоянных расходов recurringDay мог отсутствовать.
+        // Фиксируем исходный день ДО смены даты, иначе generateRecurring() считает,
+        // что исходный платёж исчез, и создаёт его повторно.
+        if(tx.recurringId&&(tx.recurringDay===undefined||tx.recurringDay===null||tx.recurringDay==='')){
+          const rule=state.recurring.find(r=>r.id===tx.recurringId);
+          const ruleDays=rule?recurringDays(rule):[];
+          tx.recurringDay=ruleDays.length===1?ruleDays[0]:oldDay;
+        }
+        const newDay=Math.min(Math.max(oldDay,start),end),[year,mon]=state.selectedMonth.split('-').map(Number);
+        tx.date=iso(year,mon,newDay);
+        return {tx,newDay};
+      }
+
+      function applySplitMove(id,start,end,moveAmount){
+        const tx=month().transactions.find(t=>t.id===id);if(!tx||tx.type!=='expense')return null;
+        const total=Number(tx.plan||0),amount=Number(moveAmount);if(!Number.isFinite(amount)||amount<=0||amount>total)return null;
+        if(amount===total){const moved=applyMove(id,start,end);return moved?{...moved,split:false,amount}:null;}
+        const [year,mon]=state.selectedMonth.split('-').map(Number),oldDay=parseDate(tx.date).getDate(),newDay=Math.min(Math.max(oldDay,start),end),remaining=total-amount;
+        tx.plan=remaining;
+        if(tx.actual!==null&&tx.actual!==undefined&&tx.actual!=='')tx.actual=Math.min(Number(tx.actual),remaining);
+        const movedTx={...tx,id:uid('tx'),date:iso(year,mon,newDay),plan:amount,actual:null,paid:false,note:[tx.note,`Остаток перенесён из периода с ${oldDay} числа`].filter(Boolean).join(' · ')};
+        delete movedTx.recurringId;delete movedTx.recurringDay;
+        month().transactions.push(movedTx);
+        return {tx:movedTx,newDay,split:true,amount,remaining};
+      }
+
+      function moveTransaction(id,start,end){const result=applyMove(id,start,end);if(!result)return;save();render();showToast(`Расход «${result.tx.name}» перенесён на ${result.newDay} число`);}
+
+      function moveToAnotherMonth(id,targetKey,targetDate,moveAmount){
+        const source=month();
+        const tx=source.transactions.find(t=>t.id===id);
+        if(!tx||tx.type!=='expense')return null;
+        const total=Number(tx.plan||0),amount=Number(moveAmount);
+        if(!Number.isFinite(amount)||amount<=0||amount>total)return null;
+        if(!state.months[targetKey])state.months[targetKey]={openingBalance:0,transactions:[]};
+        generateRecurring(state,targetKey);
+        const target=state.months[targetKey];
+
+        if(amount===total){
+          if(tx.recurringId)suppressRecurringInstance(source,tx);
+          source.transactions=source.transactions.filter(t=>t.id!==id);
+          if(source.cashBaseline)source.cashBaseline.includedTransactionIds=(source.cashBaseline.includedTransactionIds||[]).filter(txId=>txId!==id);
+          const moved={...tx,date:targetDate};
+          if(moved.recurringId){
+            moved.note=[moved.note,'Перенесено из предыдущего месяца'].filter(Boolean).join(' · ');
+            delete moved.recurringId; delete moved.recurringDay;
+          }
+          target.transactions.push(moved);
+          return {tx:moved,split:false,amount,targetKey};
+        }
+
+        const remaining=total-amount;
+        tx.plan=remaining;
+        if(tx.actual!==null&&tx.actual!==undefined&&tx.actual!=='')tx.actual=Math.min(Number(tx.actual),remaining);
+        const moved={...tx,id:uid('tx'),date:targetDate,plan:amount,actual:null,paid:false,note:[tx.note,'Часть платежа перенесена из предыдущего месяца'].filter(Boolean).join(' · ')};
+        delete moved.recurringId; delete moved.recurringDay;
+        target.transactions.push(moved);
+        return {tx:moved,split:true,amount,remaining,targetKey};
+      }
+
+      function updateMoveTargetFields(){
+        const value=$('#movePeriodSelect').value;
+        const isNext=value.startsWith('next:');
+        $('#moveDateField').hidden=!isNext;
+        $('#moveTargetDate').required=isNext;
+      }
+
+      function openMoveTransaction(id){
+        const tx=month().transactions.find(t=>t.id===id);if(!tx||tx.type!=='expense')return;
+        const ranges=getPeriodRanges();
+        movingTransactionId=id;
+        const currentDay=parseDate(tx.date).getDate(),monthWord=fullDate.format(monthDate()).replace(/^1\s*/, '').replace(/\.$/, ''),currentIndex=ranges.findIndex(range=>currentDay>=range.start&&currentDay<=range.end),suggested=ranges[Math.min(Math.max(currentIndex+1,0),Math.max(ranges.length-1,0))];
+        const nextKey=adjacentMonthKey(state.selectedMonth,1),[ny,nm]=nextKey.split('-').map(Number),nextLastDay=new Date(ny,nm,0).getDate(),nextDate=iso(ny,nm,Math.min(currentDay,nextLastDay));
+        const nextLabel=monthFormat.format(new Date(ny,nm-1,1));
+        $('#moveTitle').textContent=`Перенести «${tx.name}»`;
+        const currentOptions=ranges.map(range=>`<option value="period:${range.start}:${range.end}" ${range===suggested?'selected':''}>${range.start}–${range.end} ${monthWord}</option>`).join('');
+        $('#movePeriodSelect').innerHTML=currentOptions+`<option value="next:${nextKey}">В следующий месяц — ${nextLabel}</option>`;
+        $('#moveTargetDate').min=iso(ny,nm,1);$('#moveTargetDate').max=iso(ny,nm,nextLastDay);$('#moveTargetDate').value=nextDate;
+        const actual=Number(tx.actual),plan=Number(tx.plan||0),suggestedAmount=Number.isFinite(actual)&&actual>0&&actual<plan?plan-actual:plan;
+        $('#moveAmount').max=String(plan);$('#moveAmount').value=String(suggestedAmount);
+        $('#moveAmountHint').textContent=suggestedAmount<plan?`Уже внесено ${formatMoney(actual)}. Предлагаем перенести оставшиеся ${formatMoney(suggestedAmount)}.`:`Можно перенести весь расход или указать только часть суммы.`;
+        clearErrors($('#moveForm'));updateMoveTargetFields();$('#moveDialog').showModal();setTimeout(()=>$('#movePeriodSelect').focus(),0);
+      }
+
+      function submitMove(event){
+        event.preventDefault();if(!movingTransactionId)return;
+        const form=event.currentTarget,value=$('#movePeriodSelect').value,amount=Number(form.elements.amount.value),tx=month().transactions.find(t=>t.id===movingTransactionId),total=Number(tx?.plan||0);
+        clearErrors(form);
+        if(!Number.isFinite(amount)||amount<=0||amount>total){setError(form,'amount',`Введите сумму от 1 до ${formatMoney(total)}.`);return;}
+        let result;
+        if(value.startsWith('next:')){
+          const targetKey=value.slice(5),targetDate=form.elements.targetDate.value;
+          if(!targetDate||targetDate.slice(0,7)!==targetKey){setError(form,'targetDate','Выберите дату в следующем месяце.');return;}
+          result=moveToAnotherMonth(movingTransactionId,targetKey,targetDate,amount);
+          if(!result)return;
+          save();closeDialog($('#moveDialog'));render();
+          showToast(result.split?`${formatMoney(result.amount)} перенесено в следующий месяц, в текущем осталось ${formatMoney(result.remaining)}`:`Расход «${result.tx.name}» перенесён в следующий месяц`);
+        }else{
+          const parts=value.split(':');
+          const start=Number(parts[1]),end=Number(parts[2]);
+          result=applySplitMove(movingTransactionId,start,end,amount);if(!result)return;
+          save();closeDialog($('#moveDialog'));render();
+          showToast(result.split?`${formatMoney(result.amount)} перенесено, в текущем периоде осталось ${formatMoney(result.remaining)}`:`Расход «${result.tx.name}» перенесён на ${result.newDay} число`);
+        }
+        movingTransactionId=null;
+      }
+
+      function openBaseline(){const dialog=$('#baselineDialog'),form=$('#baselineForm'),existing=month().cashBaseline,[year,mon]=state.selectedMonth.split('-').map(Number),lastDay=new Date(year,mon,0).getDate();form.reset();clearErrors(form);form.elements.date.min=iso(year,mon,1);form.elements.date.max=iso(year,mon,lastDay);form.elements.date.value=existing?.date||defaultDate();form.elements.amount.value=existing?.amount??calculate().balanceNow;$('#clearBaseline').hidden=!existing;dialog.showModal();setTimeout(()=>form.elements.amount.focus(),0);}
+
+      function submitBaseline(event){event.preventDefault();const form=event.currentTarget,date=form.elements.date.value,amount=Number(form.elements.amount.value);clearErrors(form);if(!date||date.slice(0,7)!==state.selectedMonth){setError(form,'date','Выберите дату в текущем месяце.');return;}if(!Number.isFinite(amount)){setError(form,'amount','Введите текущую сумму денег.');return;}const cutoff=parseDate(date);const includedTransactionIds=month().transactions.filter(tx=>(tx.type==='income'&&(tx.paid||parseDate(tx.date)<=cutoff))||(tx.type==='expense'&&tx.paid)).map(tx=>tx.id);month().cashBaseline={date,amount,includedTransactionIds};save();closeDialog($('#baselineDialog'));render();showToast('Начальная сумма сохранена');}
+
+      function clearBaseline(){if(!month().cashBaseline)return;if(!confirm('Сбросить начальную сумму и снова считать остаток от операций месяца?'))return;delete month().cashBaseline;save();closeDialog($('#baselineDialog'));render();showToast('Начальная сумма сброшена');}
+
+      function exportJson(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`семейный-бюджет-${state.selectedMonth}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);showToast('Резервная копия скачана');}
+      function importJson(file){const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(reader.result);if(!parsed||parsed.version!==1||!parsed.months||!Array.isArray(parsed.recurring))throw new Error();if(!Array.isArray(parsed.recurringIncome))parsed.recurringIncome=[];if(!confirm('Заменить текущие данные содержимым резервной копии?'))return;state=parsed;save();switchView(state.activeView||'overview');showToast('Данные восстановлены');}catch(e){alert('Не удалось импортировать файл. Проверьте, что это резервная копия приложения.');}};reader.readAsText(file);}
+      function resetData(){if(!confirm('Очистить локальную копию? Общие данные можно снова загрузить из Supabase.'))return;state=seedState();persistLocal();switchView('overview');showToast('Локальная копия очищена');}
+      function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
+      function plural(n,one,few,many){const m10=n%10,m100=n%100;return m10===1&&m100!==11?one:m10>=2&&m10<=4&&(m100<12||m100>14)?few:many;}
+      function formatMonthShort(key){const [y,m]=key.split('-').map(Number);return new Intl.DateTimeFormat('ru-RU',{month:'short',year:'numeric'}).format(new Date(y,m-1,1));}
+
+      document.addEventListener('click',e=>{
+        const nav=e.target.closest('[data-view-target]'); if(nav){switchView(nav.dataset.viewTarget);return;}
+        const go=e.target.closest('[data-go]'); if(go){switchView(go.dataset.go);return;}
+        const filter=e.target.closest('[data-filter]'); if(filter){state.filter=filter.dataset.filter;persistLocal();renderTransactions();return;}
+        const editTx=e.target.closest('.edit-tx'); if(editTx){openTransaction('expense',editTx.closest('[data-id]').dataset.id);return;}
+        const pay=e.target.closest('.toggle-paid'); if(pay){togglePaid(pay.closest('[data-id]').dataset.id);return;}
+        const move=e.target.closest('.move-tx'); if(move){openMoveTransaction(move.closest('[data-id]').dataset.id);return;}
+        const addPeriod=e.target.closest('.add-period-expense'); if(addPeriod){openTransaction('expense',null,{start:Number(addPeriod.dataset.periodStart),end:Number(addPeriod.dataset.periodEnd)});return;}
+        const removePeriod=e.target.closest('.delete-period'); if(removePeriod){deletePeriod(Number(removePeriod.dataset.periodStart),Number(removePeriod.dataset.periodEnd));return;}
+        if(e.target.closest('#openNextMonth')){state.selectedMonth=adjacentMonthKey(state.selectedMonth,1);generateRecurring(state,state.selectedMonth);save();render();return;}
+        const setActual=e.target.closest('.set-period-actual'); if(setActual){setPeriodActual(Number(setActual.dataset.periodStart),Number(setActual.dataset.periodCalculated));return;}
+        const editRecIncome=e.target.closest('.edit-recurring-income'); if(editRecIncome){openRecurringIncome(editRecIncome.closest('[data-income-id]').dataset.incomeId);return;}
+        const editRec=e.target.closest('.edit-recurring'); if(editRec){openRecurring(editRec.closest('[data-id]').dataset.id);return;}
+        const close=e.target.closest('[data-close]'); if(close){closeDialog(close.closest('dialog'));return;}
+      });
+      document.addEventListener('change',e=>{
+        if(e.target.id==='recIncomeSalaryAuto'){recurringIncomeSalaryCalculated=false;updateRecurringIncomeModeUI();return;}
+        if(e.target.id==='movePeriodSelect'){updateMoveTargetFields();return;}
+        if(e.target.matches('#transactionForm input[name="type"]')){$('#recurringTemplateField').hidden=Boolean(editingTransaction)||e.target.value!=='expense';return;}
+        if(e.target.id==='txRecurringTemplate'&&e.target.value){const rule=state.recurring.find(r=>r.id===e.target.value);if(rule){const form=$('#transactionForm');form.elements.name.value=rule.name;form.elements.category.value=rule.category||'';form.elements.plan.value=rule.amount;const [year,mon]=state.selectedMonth.split('-').map(Number);const days=recurringDays(rule);const matchingDay=transactionPeriod?days.find(day=>day>=transactionPeriod.start&&day<=transactionPeriod.end):days[0];if(matchingDay)form.elements.date.value=iso(year,mon,matchingDay);form.elements.name.focus();}return;}
+        if(e.target.matches('.toggle-recurring-income')){const r=(state.recurringIncome||[]).find(x=>x.id===e.target.closest('[data-income-id]').dataset.incomeId);if(!r)return;r.active=e.target.checked;if(!r.active){Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==r.id||t.paid);});}else{generateRecurring(state,state.selectedMonth);}save();render();showToast(r.active?'Постоянный доход включён':'Постоянный доход выключен');return;}
+        if(e.target.matches('.toggle-recurring')){const r=state.recurring.find(x=>x.id===e.target.closest('[data-id]').dataset.id);r.active=e.target.checked;if(!r.active){Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==r.id||t.paid);});}else{generateRecurring(state,state.selectedMonth);}save();render();showToast(r.active?'Постоянный расход включён':'Постоянный расход выключен');}
+      });
+      document.addEventListener('input',e=>{if(['recIncomeMonthlySalary','recIncomeSalaryPayDayFirst','recIncomeSalaryPayDaySecond'].includes(e.target.id)){invalidateRecurringIncomeSalaryCalculation();return;}if(['recIncomeSalaryFirstAmount','recIncomeSalarySecondAmount'].includes(e.target.id)){updateSalaryResultTotal();}});
+      document.addEventListener('toggle',e=>{if(e.target.matches?.('.recurring-section')){const section=e.target.dataset.recurringSection;if(e.target.open)openRecurringSections.add(section);else openRecurringSections.delete(section);return;}if(e.target.matches?.('.period-group')){const key=e.target.dataset.periodKey;if(!key)return;if(e.target.open)openTransactionPeriods.add(key);else openTransactionPeriods.delete(key);}},true);
+      document.addEventListener('dragstart',e=>{const row=e.target.closest('.draggable-expense');if(!row)return;draggedTransactionId=row.dataset.id;row.classList.add('dragging');if(e.dataTransfer){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',draggedTransactionId);}});
+      document.addEventListener('dragover',e=>{const period=e.target.closest('.period-group');if(!period||!draggedTransactionId)return;e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect='move';$$('.period-group.drop-target').forEach(group=>{if(group!==period)group.classList.remove('drop-target');});period.classList.add('drop-target');});
+      document.addEventListener('dragleave',e=>{const period=e.target.closest('.period-group');if(period&&!period.contains(e.relatedTarget))period.classList.remove('drop-target');});
+      document.addEventListener('drop',e=>{const period=e.target.closest('.period-group');if(!period||!draggedTransactionId)return;e.preventDefault();const id=draggedTransactionId,start=Number(period.dataset.periodStart),end=Number(period.dataset.periodEnd);draggedTransactionId=null;period.classList.remove('drop-target');moveTransaction(id,start,end);});
+      document.addEventListener('dragend',()=>{draggedTransactionId=null;$$('.dragging,.drop-target').forEach(el=>el.classList.remove('dragging','drop-target'));});
+      $('#prevMonth').addEventListener('click',()=>changeMonth(-1)); $('#nextMonth').addEventListener('click',()=>changeMonth(1));
+      $('#quickExpense').addEventListener('click',()=>openTransaction('expense')); $('#quickIncome').addEventListener('click',()=>openTransaction('income')); $('#addTransaction').addEventListener('click',()=>openTransaction('expense')); $('#addRecurring').addEventListener('click',()=>openRecurring()); $('#addRecurringIncome').addEventListener('click',()=>openRecurringIncome());
+      $('#setBaseline').addEventListener('click',openBaseline); $('#transactionForm').addEventListener('submit',submitTransaction); $('#recurringForm').addEventListener('submit',submitRecurring); $('#recurringIncomeForm').addEventListener('submit',submitRecurringIncome); $('#calculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#recalculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#baselineForm').addEventListener('submit',submitBaseline); $('#moveForm').addEventListener('submit',submitMove); $('#deleteTransaction').addEventListener('click',deleteTransaction); $('#deleteRecurring').addEventListener('click',deleteRecurring); $('#deleteRecurringIncome').addEventListener('click',deleteRecurringIncome); $('#clearBaseline').addEventListener('click',clearBaseline);
+      $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('click',()=>$('#importFile').click()); $('#importFile').addEventListener('change',e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value='';}); $('#resetData').addEventListener('click',resetData);
+      $('#authForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,email=form.elements.email.value.trim(),password=form.elements.password.value;$('#authMessage').textContent='';try{await signIn(email,password);}catch(error){$('#authMessage').textContent=cloudErrorMessage(error);}});
+      $('#authSignUp').addEventListener('click',async()=>{const form=$('#authForm'),email=form.elements.email.value.trim(),password=form.elements.password.value;if(!email||password.length<6){$('#authMessage').textContent='Введите email и пароль минимум из 6 символов.';return;}try{await signUp(email,password);}catch(error){$('#authMessage').textContent=cloudErrorMessage(error);}});
+      document.addEventListener('click',async e=>{if(e.target.closest('#cloudOpenAuth')){showAuth();return;}if(e.target.closest('#cloudPull')){try{await loadCloudState({bootstrap:false});}catch(error){setCloudStatus('error',cloudErrorMessage(error));}return;}if(e.target.closest('#cloudPush')){await saveCloudState();return;}if(e.target.closest('#cloudSignOut')){if(cloud.channel)cloud.client.removeChannel(cloud.channel);await cloud.client.auth.signOut();cloud.user=null;cloud.householdId=null;setCloudStatus('auth','Вы вышли. Локальная копия остаётся на этом устройстве.');showAuth();return;}});
+      document.addEventListener('submit',async e=>{if(e.target.id!=='cloudInviteForm')return;e.preventDefault();const email=e.target.elements.email.value.trim().toLowerCase();if(!email||!cloud.householdId)return;const {error}=await cloud.client.from('household_invitations').insert({household_id:cloud.householdId,email,invited_by:cloud.user.id});if(error){showToast(error.code==='23505'?'Приглашение для этого email уже создано':cloudErrorMessage(error));return;}e.target.reset();showToast('Приглашение сохранено. Муж может зарегистрироваться с этим email.');});
+      $$('dialog').filter(dialog=>dialog.id!=='authDialog').forEach(dialog=>dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();}));
+      initNav(); switchView(state.activeView||'overview'); renderCloudPanel(); initCloud();
+    })();
+  </script>
+</body>
+</html>
