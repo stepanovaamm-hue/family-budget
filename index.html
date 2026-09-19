@@ -612,6 +612,30 @@
       .savings-entry .money { grid-column: 2; grid-row: auto; text-align: left; }
       .savings-entry .status { grid-column: 2; }
     }
+
+    .private-note { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:14px; background:#eef3ff; color:#31415f; font-size:13px; }
+    .private-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; }
+    .private-card { padding:20px; border:1px solid var(--border); border-radius:18px; background:var(--surface); }
+    .private-card span { color:var(--muted); font-size:13px; }
+    .private-card strong { display:block; margin-top:7px; font-size:28px; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+    .private-card.primary { background:#243c71; color:#fff; border-color:#243c71; }
+    .private-card.primary span { color:rgba(255,255,255,.75); }
+    .private-ledger { display:grid; gap:10px; }
+    .private-row { display:grid; grid-template-columns:96px minmax(170px,1fr) 130px 140px 44px; gap:12px; align-items:center; min-height:66px; padding:12px 16px; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
+    .private-row time { color:var(--muted); font-size:13px; }
+    .private-row-main strong { display:block; }
+    .private-row-main small { color:var(--muted); }
+    .private-row .money { text-align:right; }
+    .private-row .money.income { color:var(--income); }
+    .private-row .money.expense { color:var(--expense); }
+    .private-pay-button { min-width:116px; }
+    @media (max-width:900px) {
+      .private-summary { grid-template-columns:1fr; }
+      .private-row { grid-template-columns:74px minmax(0,1fr) auto 40px; }
+      .private-row > span:nth-of-type(1) { display:none; }
+      .private-row .money { grid-column:3; grid-row:1 / span 2; }
+      .private-row .icon-button { grid-column:4; grid-row:1 / span 2; }
+    }
   </style>
 </head>
 <body>
@@ -620,6 +644,7 @@
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></symbol>
     <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 6.5h14a2 2 0 0 1 2 2V19H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12"></path><path d="M16 11h5v4h-5a2 2 0 0 1 0-4Z"></path></symbol>
     <symbol id="i-piggy" viewBox="0 0 24 24"><path d="M5 10a7 7 0 0 1 7-5c3.8 0 7 2.7 7 6v4a4 4 0 0 1-4 4H9a5 5 0 0 1-5-5v-2"></path><path d="M12 5V3h4v3M18 9h3v4h-2M8 19v2M16 19v2M8 10h.01"></path></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"></path></symbol>
     <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></symbol>
     <symbol id="i-archive" viewBox="0 0 24 24"><path d="M4 7v13h16V7"></path><path d="M3 4h18v3H3z"></path><path d="M9 11h6"></path></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
@@ -715,6 +740,20 @@
           <div class="section">
             <div class="section-header"><div><h2>Поступления в копилку</h2><p>История по всем месяцам. Непроведённые операции показываются как план.</p></div></div>
             <div id="savingsHistory"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-private" data-view="private" hidden>
+          <div class="page-heading"><div><h1>Личные деньги</h1><p>Ваши личные доходы и расходы. Эти данные доступны только вашему аккаунту.</p></div><div class="page-heading-actions"><button class="button secondary" id="addPrivateExpense"><svg class="icon"><use href="#i-plus"></use></svg>Личный расход</button><button class="button primary" id="addPrivateIncome"><svg class="icon"><use href="#i-plus"></use></svg>Личный доход</button></div></div>
+          <div class="private-note"><svg class="icon"><use href="#i-lock"></use></svg><span>Другой участник семейного бюджета не видит суммы, названия и историю здесь. Если вы оплачиваете общий расход личными деньгами, в общем бюджете видно только то, что этот расход проведён.</span></div>
+          <div class="private-summary">
+            <div class="private-card primary"><span>Личный остаток</span><strong id="privateBalance">0 ₽</strong></div>
+            <div class="private-card"><span>Личные доходы</span><strong id="privateIncomeTotal">0 ₽</strong></div>
+            <div class="private-card"><span>Личные расходы</span><strong id="privateExpenseTotal">0 ₽</strong></div>
+          </div>
+          <div class="section">
+            <div class="section-header"><div><h2>Личная история</h2><p>Доходы, личные траты и оплаты общих расходов из личных денег.</p></div></div>
+            <div id="privateHistory" class="private-ledger"></div>
           </div>
         </section>
 
@@ -820,6 +859,21 @@
     </form>
   </dialog>
 
+  <dialog id="privateTransactionDialog" aria-labelledby="privateTransactionTitle">
+    <form id="privateTransactionForm" novalidate>
+      <div class="dialog-header"><h2 id="privateTransactionTitle">Личная операция</h2><button type="button" class="icon-button" data-close aria-label="Закрыть"><svg class="icon"><use href="#i-close"></use></svg></button></div>
+      <div class="dialog-body"><div class="form-grid">
+        <div class="field full"><label>Тип</label><div class="type-toggle"><label><input type="radio" name="kind" value="income" checked><span>Доход</span></label><label><input type="radio" name="kind" value="expense"><span>Расход</span></label></div></div>
+        <div class="field full"><label for="privateName">Название</label><input id="privateName" name="name" required maxlength="80" autocomplete="off"><div class="error-text" data-error="name"></div></div>
+        <div class="field"><label for="privateDate">Дата</label><input id="privateDate" name="date" type="date" required><div class="error-text" data-error="date"></div></div>
+        <div class="field"><label for="privateAmount">Сумма, ₽</label><input id="privateAmount" name="amount" type="number" min="0" step="1" inputmode="decimal" required><div class="error-text" data-error="amount"></div></div>
+        <div class="field full"><label for="privateCategory">Категория</label><input id="privateCategory" name="category" maxlength="40" autocomplete="off" placeholder="Например: Подработка, Личное"></div>
+        <div class="field full"><label for="privateNote">Комментарий</label><input id="privateNote" name="note" maxlength="120" autocomplete="off"></div>
+      </div></div>
+      <div class="dialog-footer"><button type="button" class="button danger" id="deletePrivateTransaction" hidden><svg class="icon"><use href="#i-trash"></use></svg>Удалить</button><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></div>
+    </form>
+  </dialog>
+
   <dialog id="baselineDialog" aria-labelledby="baselineTitle">
     <form id="baselineForm" novalidate>
       <div class="dialog-header"><h2 id="baselineTitle">Деньги на текущий день</h2><button type="button" class="icon-button" data-close aria-label="Закрыть"><svg class="icon"><use href="#i-close"></use></svg></button></div>
@@ -853,7 +907,7 @@
       const STORAGE_KEY = 'stepanovy-family-budget-v1';
       const SUPABASE_URL = 'https://hhawxjifdqlwyaxbfspc.supabase.co';
       const SUPABASE_KEY = 'sb_publishable_VbfT1VEsS1a-Lu-_EZlKKA_T52dbc07';
-      const cloud = { client:null, user:null, householdId:null, channel:null, status:'sync', message:'Подключаюсь...', updatedAt:null };
+      const cloud = { client:null, user:null, householdId:null, channel:null, status:'sync', message:'Подключаюсь...', updatedAt:null, personalTransactions:[] };
       let cloudSaveTimer = null;
       const today = new Date(2026, 8, 19); // фиксированная дата исходной рабочей версии; после 2026-09 используется системная дата
       const realToday = new Date();
@@ -861,6 +915,7 @@
         ['overview', 'i-home', 'План месяца'],
         ['transactions', 'i-wallet', 'Операции'],
         ['savings', 'i-piggy', 'Копилка'],
+        ['private', 'i-lock', 'Личные'],
         ['recurring', 'i-repeat', 'Постоянные'],
         ['backup', 'i-archive', 'Копия']
       ];
@@ -1240,6 +1295,7 @@
       if(ensureRecurringIncomeSchedule(state))repairedState=true;
       if(repairedState)localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
       let editingTransaction = null;
+      let editingPrivateTransaction = null;
       let transactionPeriod = null;
       let editingRecurring = null;
       let editingRecurringIncome = null;
@@ -1363,6 +1419,7 @@
         try{
           await ensureHousehold();
           await loadCloudState({bootstrap:true});
+          await loadPrivateTransactions();
           subscribeCloud();
           if($('#authDialog').open) $('#authDialog').close();
           renderCloudPanel();
@@ -1456,6 +1513,117 @@
         if(!form.elements.name.value)form.elements.name.value='Пополнение копилки';
       }
 
+      function privateTotals() {
+        const list=cloud.personalTransactions||[];
+        const income=list.filter(t=>t.kind==='income').reduce((sum,t)=>sum+Number(t.amount||0),0);
+        const expense=list.filter(t=>t.kind==='expense').reduce((sum,t)=>sum+Number(t.amount||0),0);
+        return {income,expense,balance:income-expense};
+      }
+
+      async function loadPrivateTransactions() {
+        if(!cloud.client||!cloud.user||!cloud.householdId){ cloud.personalTransactions=[]; return; }
+        const {data,error}=await cloud.client.from('personal_transactions')
+          .select('id,user_id,household_id,kind,name,amount,date,category,note,linked_shared_transaction_id,created_at,updated_at')
+          .eq('household_id',cloud.householdId)
+          .order('date',{ascending:false})
+          .order('created_at',{ascending:false});
+        if(error) throw error;
+        cloud.personalTransactions=data||[];
+        if(state.activeView==='private')renderPrivate();
+      }
+
+      function renderPrivate() {
+        const totals=privateTotals();
+        $('#privateBalance').textContent=formatMoney(totals.balance);
+        $('#privateIncomeTotal').textContent=formatMoney(totals.income);
+        $('#privateExpenseTotal').textContent=formatMoney(totals.expense);
+        const box=$('#privateHistory');
+        if(!cloud.user){ box.innerHTML='<div class="panel empty"><strong>Нужно войти</strong>Личные данные доступны только после входа в аккаунт.</div>'; return; }
+        const list=cloud.personalTransactions||[];
+        if(!list.length){ box.innerHTML='<div class="panel empty"><strong>Личных операций пока нет</strong>Добавьте личный доход или личный расход.</div>'; return; }
+        box.innerHTML=list.map(t=>{
+          const amount=Number(t.amount||0),linked=t.linked_shared_transaction_id?'Оплата общего расхода':'';
+          const note=[t.category,t.note,linked].filter(Boolean).join(' · ');
+          return `<div class="private-row" data-private-id="${t.id}"><time datetime="${t.date}">${fullDate.format(parseDate(t.date))}</time><div class="private-row-main"><strong>${escapeHtml(t.name)}</strong><small>${escapeHtml(note)}</small></div><span>${t.kind==='income'?'Доход':'Расход'}</span><span class="money ${t.kind}">${t.kind==='income'?'+':'−'}${formatMoney(amount)}</span><button class="icon-button edit-private" aria-label="Редактировать ${escapeHtml(t.name)}">${icon('i-edit')}</button></div>`;
+        }).join('');
+      }
+
+      function openPrivateTransaction(kind='income',id=null) {
+        if(!cloud.user||!cloud.householdId){ showToast('Сначала войдите в аккаунт'); return; }
+        editingPrivateTransaction=id;
+        const dialog=$('#privateTransactionDialog'),form=$('#privateTransactionForm'); form.reset(); clearErrors(form);
+        const row=id?(cloud.personalTransactions||[]).find(t=>t.id===id):null;
+        $('#privateTransactionTitle').textContent=row?'Редактирование личной операции':kind==='income'?'Новый личный доход':'Новый личный расход';
+        $('#deletePrivateTransaction').hidden=!row;
+        form.elements.kind.value=row?.kind||kind;
+        form.elements.name.value=row?.name||'';
+        form.elements.date.value=row?.date||defaultDate();
+        form.elements.amount.value=row?.amount??'';
+        form.elements.category.value=row?.category||'';
+        form.elements.note.value=row?.note||'';
+        dialog.showModal(); setTimeout(()=>form.elements.name.focus(),0);
+      }
+
+      async function submitPrivateTransaction(event) {
+        event.preventDefault();
+        const form=event.currentTarget,fd=new FormData(form); clearErrors(form);
+        if(!cloud.user||!cloud.householdId){showToast('Сначала войдите в аккаунт');return;}
+        const name=String(fd.get('name')||'').trim(),amount=Number(fd.get('amount')),date=String(fd.get('date')||''),kind=String(fd.get('kind')||'income');
+        if(!name){setError(form,'name','Введите название.');return;}
+        if(!date){setError(form,'date','Выберите дату.');return;}
+        if(!Number.isFinite(amount)||amount<0){setError(form,'amount','Введите сумму от 0 ₽.');return;}
+        const payload={user_id:cloud.user.id,household_id:cloud.householdId,kind,name,amount,date,category:String(fd.get('category')||'').trim(),note:String(fd.get('note')||'').trim(),updated_at:new Date().toISOString()};
+        let result;
+        if(editingPrivateTransaction)result=await cloud.client.from('personal_transactions').update(payload).eq('id',editingPrivateTransaction).select().single();
+        else result=await cloud.client.from('personal_transactions').insert(payload).select().single();
+        if(result.error){showToast(cloudErrorMessage(result.error));return;}
+        await loadPrivateTransactions();
+        closeDialog($('#privateTransactionDialog')); editingPrivateTransaction=null; render(); showToast('Личная операция сохранена');
+      }
+
+      async function deletePrivateTransaction() {
+        if(!editingPrivateTransaction||!cloud.client)return;
+        if(!confirm('Удалить личную операцию?'))return;
+        const row=(cloud.personalTransactions||[]).find(t=>t.id===editingPrivateTransaction);
+        if(row?.linked_shared_transaction_id){showToast('Оплату общего расхода удаляйте через общий расход, чтобы не потерять связь.');return;}
+        const {error}=await cloud.client.from('personal_transactions').delete().eq('id',editingPrivateTransaction);
+        if(error){showToast(cloudErrorMessage(error));return;}
+        editingPrivateTransaction=null; await loadPrivateTransactions(); closeDialog($('#privateTransactionDialog')); render(); showToast('Личная операция удалена');
+      }
+
+      async function paySharedPrivately(id) {
+        if(!cloud.client||!cloud.user||!cloud.householdId){showToast('Сначала войдите в аккаунт');return;}
+        const tx=month().transactions.find(t=>t.id===id);
+        if(!tx||tx.type!=='expense'||tx.paid)return;
+        const amount=Number(tx.plan||0);
+        const totals=privateTotals();
+        if(totals.balance<amount){
+          const ok=confirm(`Личный остаток ${formatMoney(totals.balance)}, а расход ${formatMoney(amount)}. Всё равно оплатить из личных денег?`);
+          if(!ok)return;
+        }
+        const {error:privateError}=await cloud.client.from('personal_transactions').insert({
+          user_id:cloud.user.id,
+          household_id:cloud.householdId,
+          kind:'expense',
+          name:`Оплата общего расхода: ${tx.name}`,
+          amount,
+          date:tx.date,
+          category:'Общий бюджет',
+          note:'Оплачено из личных денег',
+          linked_shared_transaction_id:tx.id
+        });
+        if(privateError){
+          if(privateError.code==='23505'){showToast('Этот общий расход уже списан из ваших личных денег');return;}
+          showToast(cloudErrorMessage(privateError));return;
+        }
+        tx.paid=true;
+        if(tx.actual===null||tx.actual===undefined||tx.actual==='')tx.actual=amount;
+        save();
+        await loadPrivateTransactions();
+        render();
+        showToast('Общий расход оплачен из личных денег');
+      }
+
       function initNav() {
         $$('[data-nav]').forEach(container => {
           container.innerHTML = navItems.map(([id,ic,label]) => `<button class="nav-button" data-view-target="${id}">${icon(ic)}<span>${label}</span></button>`).join('');
@@ -1479,6 +1647,7 @@
         if (state.activeView === 'overview') { renderOverview(); renderSavingsWidget(); }
         if (state.activeView === 'transactions') renderTransactions();
         if (state.activeView === 'savings') renderSavings();
+        if (state.activeView === 'private') renderPrivate();
         if (state.activeView === 'recurring') renderRecurring();
       }
 
@@ -1611,10 +1780,11 @@
           const [statusClass,statusLabel]=statusOf(tx), d=parseDate(tx.date), amount=amountOf(tx);
           const planHint=tx.actual!==null&&tx.actual!==undefined&&Number(tx.actual)!==Number(tx.plan)?`План ${formatMoney(tx.plan)}`:'';
           const secondary=[tx.note,planHint].filter(Boolean).join(' · ');
+          const privatePayAction=editable&&tx.type==='expense'&&!tx.paid&&cloud.user?`<button class="button small secondary private-pay-button pay-private" type="button" title="Списать из личных денег">Личными</button>`:'';
           const payAction=quickPay&&tx.type==='expense'?`<button class="button small ${tx.paid?'secondary unmark':'primary'} pay-button toggle-paid" aria-pressed="${tx.paid}" aria-label="${tx.paid?'Снять отметку о проведении':'Провести расход'} ${escapeHtml(tx.name)}">${tx.paid?`${icon('i-close')}Снять отметку`:'Провести'}</button>`:'';
           const movable=editable&&tx.type==='expense';
           const moveAction=movable?`<button class="icon-button move-tx" aria-label="Перенести ${escapeHtml(tx.name)} в другой период" title="Перенести в другой период">${icon('i-move')}</button>`:'';
-          return `<div class="ledger-row ${statusClass==='overdue'?'overdue':''} ${movable?'draggable-expense':''}" data-id="${tx.id}" ${movable?'draggable="true" title="Перетащите расход в другой период"':''}><time datetime="${tx.date}">${fullDate.format(d)}</time><div class="ledger-title"><strong>${escapeHtml(tx.name)}</strong><small>${escapeHtml(secondary)}</small></div><span>${escapeHtml(tx.category||'Без категории')}</span><span class="money ${tx.type}">${tx.type==='income'?'+':'−'}${formatMoney(amount)}</span><span class="status ${statusClass}">${statusLabel}</span><div class="row-actions">${payAction}${moveAction}${editable?`<button class="icon-button edit-tx" aria-label="Редактировать ${escapeHtml(tx.name)}">${icon('i-edit')}</button>`:''}</div></div>`;
+          return `<div class="ledger-row ${statusClass==='overdue'?'overdue':''} ${movable?'draggable-expense':''}" data-id="${tx.id}" ${movable?'draggable="true" title="Перетащите расход в другой период"':''}><time datetime="${tx.date}">${fullDate.format(d)}</time><div class="ledger-title"><strong>${escapeHtml(tx.name)}</strong><small>${escapeHtml(secondary)}</small></div><span>${escapeHtml(tx.category||'Без категории')}</span><span class="money ${tx.type}">${tx.type==='income'?'+':'−'}${formatMoney(amount)}</span><span class="status ${statusClass}">${statusLabel}</span><div class="row-actions">${privatePayAction}${payAction}${moveAction}${editable?`<button class="icon-button edit-tx" aria-label="Редактировать ${escapeHtml(tx.name)}">${icon('i-edit')}</button>`:''}</div></div>`;
         }).join('');
         return `<div class="ledger-row header"><span>Дата</span><span>Операция</span><span>Категория</span><span>Сумма</span><span>Статус</span><span></span></div>${rows}`;
       }
@@ -2130,6 +2300,8 @@
         const nav=e.target.closest('[data-view-target]'); if(nav){switchView(nav.dataset.viewTarget);return;}
         const go=e.target.closest('[data-go]'); if(go){switchView(go.dataset.go);return;}
         const filter=e.target.closest('[data-filter]'); if(filter){state.filter=filter.dataset.filter;save();renderTransactions();return;}
+        const privatePay=e.target.closest('.pay-private'); if(privatePay){paySharedPrivately(privatePay.closest('[data-id]').dataset.id);return;}
+        const editPrivate=e.target.closest('.edit-private'); if(editPrivate){openPrivateTransaction('income',editPrivate.closest('[data-private-id]').dataset.privateId);return;}
         const editTx=e.target.closest('.edit-tx'); if(editTx){openTransaction('expense',editTx.closest('[data-id]').dataset.id);return;}
         const pay=e.target.closest('.toggle-paid'); if(pay){togglePaid(pay.closest('[data-id]').dataset.id);return;}
         const move=e.target.closest('.move-tx'); if(move){openMoveTransaction(move.closest('[data-id]').dataset.id);return;}
@@ -2157,13 +2329,17 @@
       document.addEventListener('drop',e=>{const period=e.target.closest('.period-group');if(!period||!draggedTransactionId)return;e.preventDefault();const id=draggedTransactionId,start=Number(period.dataset.periodStart),end=Number(period.dataset.periodEnd);draggedTransactionId=null;period.classList.remove('drop-target');moveTransaction(id,start,end);});
       document.addEventListener('dragend',()=>{draggedTransactionId=null;$$('.dragging,.drop-target').forEach(el=>el.classList.remove('dragging','drop-target'));});
       $('#prevMonth').addEventListener('click',()=>changeMonth(-1)); $('#nextMonth').addEventListener('click',()=>changeMonth(1));
+      $('#addPrivateIncome').addEventListener('click',()=>openPrivateTransaction('income'));
+      $('#addPrivateExpense').addEventListener('click',()=>openPrivateTransaction('expense'));
+      $('#privateTransactionForm').addEventListener('submit',submitPrivateTransaction);
+      $('#deletePrivateTransaction').addEventListener('click',deletePrivateTransaction);
       $('#addSavings').addEventListener('click',openSavingsTransaction);
       $('#quickExpense').addEventListener('click',()=>openTransaction('expense')); $('#quickIncome').addEventListener('click',()=>openTransaction('income')); $('#addTransaction').addEventListener('click',()=>openTransaction('expense')); $('#addRecurring').addEventListener('click',()=>openRecurring()); $('#addRecurringIncome').addEventListener('click',()=>openRecurringIncome());
       $('#setBaseline').addEventListener('click',openBaseline); $('#transactionForm').addEventListener('submit',submitTransaction); $('#recurringForm').addEventListener('submit',submitRecurring); $('#recurringIncomeForm').addEventListener('submit',submitRecurringIncome); $('#calculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#recalculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#baselineForm').addEventListener('submit',submitBaseline); $('#moveForm').addEventListener('submit',submitMove); $('#deleteTransaction').addEventListener('click',deleteTransaction); $('#deleteRecurring').addEventListener('click',deleteRecurring); $('#deleteRecurringIncome').addEventListener('click',deleteRecurringIncome); $('#clearBaseline').addEventListener('click',clearBaseline);
       $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('click',()=>$('#importFile').click()); $('#importFile').addEventListener('change',e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value='';}); $('#resetData').addEventListener('click',resetData);
       $('#authForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,email=form.elements.email.value.trim(),password=form.elements.password.value;$('#authMessage').textContent='';try{await signIn(email,password);}catch(error){$('#authMessage').textContent=cloudErrorMessage(error);}});
       $('#authSignUp').addEventListener('click',async()=>{const form=$('#authForm'),email=form.elements.email.value.trim(),password=form.elements.password.value;if(!email||password.length<6){$('#authMessage').textContent='Введите email и пароль минимум из 6 символов.';return;}try{await signUp(email,password);}catch(error){$('#authMessage').textContent=cloudErrorMessage(error);}});
-      document.addEventListener('click',async e=>{if(e.target.closest('#cloudOpenAuth')){showAuth();return;}if(e.target.closest('#cloudPull')){try{await loadCloudState({bootstrap:false});}catch(error){setCloudStatus('error',cloudErrorMessage(error));}return;}if(e.target.closest('#cloudPush')){await saveCloudState();return;}if(e.target.closest('#cloudSignOut')){if(cloud.channel)cloud.client.removeChannel(cloud.channel);await cloud.client.auth.signOut();cloud.user=null;cloud.householdId=null;setCloudStatus('auth','Вы вышли. Локальная копия остаётся на этом устройстве.');showAuth();return;}});
+      document.addEventListener('click',async e=>{if(e.target.closest('#cloudOpenAuth')){showAuth();return;}if(e.target.closest('#cloudPull')){try{await loadCloudState({bootstrap:false});}catch(error){setCloudStatus('error',cloudErrorMessage(error));}return;}if(e.target.closest('#cloudPush')){await saveCloudState();return;}if(e.target.closest('#cloudSignOut')){if(cloud.channel)cloud.client.removeChannel(cloud.channel);await cloud.client.auth.signOut();cloud.user=null;cloud.householdId=null;cloud.personalTransactions=[];setCloudStatus('auth','Вы вышли. Локальная копия остаётся на этом устройстве.');showAuth();return;}});
       document.addEventListener('submit',async e=>{if(e.target.id!=='cloudInviteForm')return;e.preventDefault();const email=e.target.elements.email.value.trim().toLowerCase();if(!email||!cloud.householdId)return;const {error}=await cloud.client.from('household_invitations').insert({household_id:cloud.householdId,email,invited_by:cloud.user.id});if(error){showToast(error.code==='23505'?'Приглашение для этого email уже создано':cloudErrorMessage(error));return;}e.target.reset();showToast('Приглашение сохранено. Муж может зарегистрироваться с этим email.');});
       $$('dialog').filter(dialog=>dialog.id!=='authDialog').forEach(dialog=>dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();}));
       initNav(); switchView(state.activeView||'overview'); renderCloudPanel(); initCloud();
