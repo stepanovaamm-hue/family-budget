@@ -1717,7 +1717,10 @@
       }
 
       function calculate() {
-        const txs=sortTx(month().transactions), now=effectiveToday(), opening=Number(month().openingBalance||0);
+        // Для сентября бюджет в приложении начинается с 18 числа.
+        // Операции до этой даты не должны влиять на первый экран и его прогнозы.
+        const startDay=budgetStartDay();
+        const txs=sortTx(month().transactions).filter(tx=>parseDate(tx.date).getDate()>=startDay), now=effectiveToday(), opening=Number(month().openingBalance||0);
         const baseline=month().cashBaseline;
         const included=new Set(baseline?.includedTransactionIds||[]);
         let balanceNow=baseline?Number(baseline.amount||0):opening;
