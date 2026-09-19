@@ -1418,10 +1418,11 @@
 
       function getPeriodRanges() {
         const [year,mon]=state.selectedMonth.split('-').map(Number), lastDay=new Date(year,mon,0).getDate(), startDay=budgetStartDay();
-        // Периоды разбиваются только по зарплатным поступлениям всех членов семьи.
-        // Несколько зарплат в один день образуют один общий старт периода.
+        // С сентября сохраняем старую логику: периоды по зарплатным поступлениям.
+        // С октября и дальше новый период начинается после каждого дохода семьи.
+        const useAllIncome=state.selectedMonth>='2026-10';
         const starts=[...new Set(month().transactions
-          .filter(t=>isSalaryIncome(t)&&parseDate(t.date).getDate()>=startDay)
+          .filter(t=>(useAllIncome?t.type==='income':isSalaryIncome(t))&&parseDate(t.date).getDate()>=startDay)
           .map(t=>parseDate(t.date).getDate()))]
           .sort((a,b)=>a-b);
         return starts.map((start,index)=>({start,end:index<starts.length-1?starts[index+1]-1:lastDay}));
