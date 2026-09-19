@@ -740,14 +740,97 @@
       .login-help { margin-top:12px; font-size:11px; }
     }
     @media (max-width:700px) {
-      .login-gate { padding:14px 10px; align-items:center; }
-      .login-card { margin:auto 0; padding:28px 22px 24px; border-radius:26px; max-height:calc(100svh - 20px); }
-      .login-card h1 { font-size:clamp(34px,10vw,44px); }
-      .login-card .login-copy { font-size:16px; }
-      .login-phrase-wrap { min-height:86px; margin:22px 0; padding:18px 22px; }
-      .login-phrase { font-size:18px; }
-      .login-form input { min-height:54px; font-size:17px; }
-      .login-open-button { min-height:56px; font-size:18px; }
+      .login-gate {
+        padding:18px 18px 22px;
+        align-items:center;
+        background-position:center center;
+      }
+      .login-card {
+        width:min(92vw,560px);
+        margin:auto;
+        padding:26px 22px 22px;
+        border-radius:24px;
+        max-height:calc(100svh - 40px);
+      }
+      .login-card h1 {
+        max-width:360px;
+        font-size:clamp(32px,8.8vw,40px);
+        line-height:1.04;
+        letter-spacing:-.045em;
+      }
+      .login-card .login-copy {
+        max-width:390px;
+        margin-top:12px;
+        font-size:15px;
+        line-height:1.42;
+      }
+      .login-phrase-wrap {
+        min-height:78px;
+        margin:18px 0 18px;
+        padding:16px 20px;
+        border-radius:18px;
+      }
+      .login-phrase {
+        max-width:330px;
+        font-size:16px;
+        line-height:1.34;
+      }
+      .login-form { gap:13px; }
+      .login-form .field label {
+        margin-bottom:6px;
+        font-size:15px;
+      }
+      .login-form input {
+        min-height:50px;
+        padding:0 16px;
+        border-radius:14px;
+        font-size:16px;
+      }
+      .login-password-wrap input { padding-right:54px; }
+      .login-password-toggle {
+        right:8px;
+        width:38px;
+        height:38px;
+        border-radius:10px;
+      }
+      .login-open-button {
+        min-height:52px;
+        border-radius:14px;
+        font-size:17px;
+      }
+      .login-create-account {
+        font-size:14px;
+        padding:3px 8px;
+      }
+      .login-help {
+        margin-top:14px;
+        max-width:360px;
+        font-size:10.5px;
+        line-height:1.35;
+      }
+    }
+
+    @media (max-width:390px) {
+      .login-gate { padding:14px; }
+      .login-card {
+        width:calc(100vw - 28px);
+        padding:22px 18px 20px;
+        border-radius:22px;
+        max-height:calc(100svh - 28px);
+      }
+      .login-card h1 {
+        max-width:300px;
+        font-size:30px;
+      }
+      .login-card .login-copy { font-size:14px; }
+      .login-phrase-wrap {
+        min-height:72px;
+        margin:16px 0;
+        padding:14px 18px;
+      }
+      .login-phrase { font-size:15px; }
+      .login-form input { min-height:48px; font-size:15px; }
+      .login-open-button { min-height:50px; font-size:16px; }
     }
   </style>
 </head>
@@ -777,8 +860,8 @@
 
   <section class="login-gate" id="loginGate" aria-labelledby="loginGateTitle">
     <div class="login-card">
-      <h1 id="loginGateTitle">Спокойно посмотрим<br>на цифры</h1>
-      <p class="login-copy">Введите пароль от своего аккаунта,<br>чтобы открыть семейный бюджет.</p>
+      <h1 id="loginGateTitle">Спокойно посмотрим на цифры</h1>
+      <p class="login-copy">Введите пароль от своего аккаунта, чтобы открыть семейный бюджет.</p>
       <div class="login-phrase-wrap" aria-live="polite"><p class="login-phrase" id="loginPhrase">Маленькие понятные шаги тоже считаются.</p></div>
       <form class="login-form" id="loginGateForm">
         <div class="field"><label for="loginGateEmail">Email</label><input id="loginGateEmail" name="email" type="email" autocomplete="email" required></div>
