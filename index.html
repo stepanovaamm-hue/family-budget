@@ -1657,7 +1657,11 @@
         const cells=weekdays.map(day=>`<div class="calendar-weekday">${day}</div>`);
         for(let i=0;i<firstOffset;i++)cells.push('<div class="calendar-empty" aria-hidden="true"></div>');
         for(let day=1;day<=lastDay;day++){
-          const daily=txs.filter(tx=>parseDate(tx.date).getDate()===day),income=daily.filter(tx=>tx.type==='income').reduce((sum,tx)=>sum+amountForecast(tx),0),expense=daily.filter(tx=>tx.type==='expense').reduce((sum,tx)=>sum+amountForecast(tx),0),balance=balanceThroughDay(day,txs),isToday=todayDate.getFullYear()===year&&todayDate.getMonth()+1===mon&&todayDate.getDate()===day,freeToday=isToday?current.untilIncome:null;
+          const daily=txs.filter(tx=>parseDate(tx.date).getDate()===day),income=daily.filter(tx=>tx.type==='income').reduce((sum,tx)=>sum+amountForecast(tx),0),expense=daily.filter(tx=>tx.type==='expense').reduce((sum,tx)=>sum+amountForecast(tx),0),balance=balanceThroughDay(day,txs),isToday=todayDate.getFullYear()===year&&todayDate.getMonth()+1===mon&&todayDate.getDate()===day;
+          // «Свободно сегодня» — это фактически доступные деньги на текущий день.
+          // Если пользователь задал ручную точку отсчёта, берём рассчитанный от неё текущий остаток.
+          // Если нет — используем обычный расчётный остаток на сейчас. Будущие обязательства сюда не вычитаются.
+          const freeToday=isToday?current.balanceNow:null;
           const freeMarkup=isToday?`<div class="calendar-free">Свободно сегодня<strong class="${freeToday<0?'negative':''}">${formatMoney(freeToday)}</strong></div>`:'';
           const ariaFree=isToday?`, свободно сегодня ${formatMoney(freeToday)}`:'';
           cells.push(`<article class="calendar-day ${income?'has-income':''} ${isToday?'today':''}" aria-label="${day} число: доходы ${formatMoney(income)}, расходы ${formatMoney(expense)}, остаток ${formatMoney(balance)}${ariaFree}"><div class="calendar-date"><span>${day}</span>${daily.length?`<small>${daily.length} ${plural(daily.length,'операция','операции','операций')}</small>`:''}</div><div class="calendar-flow">${income?`<span class="income">+ ${formatMoney(income)}</span>`:''}${expense?`<span class="expense">− ${formatMoney(expense)}</span>`:''}</div><div class="calendar-balance">Остаток<strong class="${balance<0?'negative':''}">${formatMoney(balance)}</strong></div>${freeMarkup}</article>`);
