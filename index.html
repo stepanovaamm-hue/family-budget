@@ -1704,7 +1704,17 @@
           cloud.user=session?.user||null;
           cloud.client.auth.onAuthStateChange((_event,sessionNow)=>{ cloud.user=sessionNow?.user||null; renderCloudPanel(); });
           setCloudStatus('auth','Введите пароль, чтобы открыть бюджет.');
-          showLoginGate(session?.user?.email||'');
+          const params=new URLSearchParams(window.location.search);
+          const signupMode=params.get('signup')==='1';
+          const inviteEmail=String(params.get('email')||'').trim();
+          showLoginGate(inviteEmail||session?.user?.email||'');
+          if(signupMode){
+            setTimeout(()=>{
+              const form=$('#authForm');
+              if(inviteEmail)form.elements.email.value=inviteEmail;
+              showAuth('Создайте отдельный аккаунт. После подтверждения email вы подключитесь к семейному бюджету.');
+            },0);
+          }
         }catch(error){
           setCloudStatus('error',cloudErrorMessage(error));
           showLoginGate('');
