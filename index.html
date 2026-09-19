@@ -664,10 +664,10 @@
       scrollbar-width:thin;
     }
     .login-card h1 {
-      margin:0; max-width:520px; font-size:clamp(38px,4.4vw,50px); line-height:1.02; letter-spacing:-.048em; font-weight:760;
+      margin:0 auto; max-width:520px; font-size:clamp(38px,4.4vw,50px); line-height:1.02; letter-spacing:-.048em; font-weight:760; text-align:center;
     }
     .login-card .login-copy {
-      margin:14px 0 0; max-width:510px; color:#8a9297; font-size:18px; line-height:1.4;
+      margin:14px auto 0; max-width:510px; color:#8a9297; font-size:18px; line-height:1.4; text-align:center;
     }
     .login-phrase-wrap {
       position:relative; min-height:96px; margin:26px 0 24px; padding:22px 28px; border-radius:20px;
@@ -679,18 +679,18 @@
       border:18px solid rgba(217,238,112,.55); border-radius:50%;
     }
     .login-phrase {
-      position:relative; z-index:1; margin:0; max-width:390px; color:#111; font-size:20px; line-height:1.34; font-weight:500;
+      position:relative; z-index:1; margin:0 auto; max-width:390px; color:#111; font-size:20px; line-height:1.34; font-weight:500; text-align:center;
       transition:opacity .28s ease, transform .28s ease;
     }
     .login-phrase.is-changing { opacity:0; transform:translateY(4px); }
     .login-form { display:grid; gap:16px; }
     .login-form .field { margin:0; }
     .login-form .field label {
-      display:block; margin:0 0 8px; color:#111; font-size:16px; font-weight:650;
+      display:block; margin:0 0 8px; color:#111; font-size:16px; font-weight:650; text-align:center;
     }
     .login-form input {
       width:100%; min-height:58px; padding:0 20px; border:1.5px solid #cfd4d6; border-radius:16px;
-      background:rgba(255,255,255,.88); color:#111; font-size:18px; outline:none;
+      background:rgba(255,255,255,.88); color:#111; font-size:18px; outline:none; text-align:center;
       transition:border-color .16s ease, box-shadow .16s ease, background .16s ease;
     }
     .login-form input:focus {
@@ -757,12 +757,14 @@
         font-size:clamp(32px,8.8vw,40px);
         line-height:1.04;
         letter-spacing:-.045em;
+        text-align:center;
       }
       .login-card .login-copy {
         max-width:390px;
-        margin-top:12px;
+        margin:12px auto 0;
         font-size:15px;
         line-height:1.42;
+        text-align:center;
       }
       .login-phrase-wrap {
         min-height:78px;
