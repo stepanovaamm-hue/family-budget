@@ -644,9 +644,48 @@
       .private-row .money { grid-column:3; grid-row:1 / span 2; }
       .private-row .icon-button { grid-column:4; grid-row:1 / span 2; }
     }
+
+    body.login-locked { overflow:hidden; }
+    body.login-locked .app { visibility:hidden; }
+    .login-gate {
+      position:fixed; inset:0; z-index:5000; display:grid; place-items:center; padding:24px;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(223,238,230,.92), transparent 34%),
+        radial-gradient(circle at 85% 80%, rgba(239,244,209,.86), transparent 34%),
+        var(--canvas);
+    }
+    .login-gate[hidden] { display:none !important; }
+    .login-card {
+      width:min(520px,100%); padding:34px; border:1px solid var(--border); border-radius:28px;
+      background:rgba(255,254,250,.96); box-shadow:0 28px 70px rgba(31,58,45,.13);
+    }
+    .login-brand { display:flex; align-items:center; gap:12px; margin-bottom:26px; }
+    .login-brand .brand-mark { width:46px; height:46px; border-radius:15px; }
+    .login-card h1 { margin:0; font-size:clamp(30px,6vw,44px); line-height:1.05; letter-spacing:-.04em; }
+    .login-card .login-copy { margin:10px 0 0; color:var(--muted); }
+    .login-phrase-wrap {
+      min-height:88px; margin:26px 0; padding:18px 20px; border-radius:18px;
+      background:var(--accent-soft); display:flex; align-items:center;
+    }
+    .login-phrase {
+      margin:0; color:#28483b; font-size:17px; line-height:1.45;
+      transition:opacity .28s ease, transform .28s ease;
+    }
+    .login-phrase.is-changing { opacity:0; transform:translateY(4px); }
+    .login-form { display:grid; gap:14px; }
+    .login-form .field { margin:0; }
+    .login-form-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+    .login-form-actions .button.primary { flex:1; min-width:150px; }
+    .login-message { min-height:22px; color:var(--expense); font-size:13px; }
+    .login-help { margin-top:18px; color:var(--muted); font-size:12px; line-height:1.45; }
+    @media (max-width:560px) {
+      .login-gate { padding:14px; }
+      .login-card { padding:24px 20px; border-radius:22px; }
+      .login-form-actions { display:grid; grid-template-columns:1fr; }
+    }
   </style>
 </head>
-<body>
+<body class="login-locked">
   <a class="skip-link" href="#main">К основному содержанию</a>
   <svg class="sr-only" aria-hidden="true">
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></symbol>
@@ -667,6 +706,22 @@
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"></path></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"></path></symbol>
   </svg>
+
+  <section class="login-gate" id="loginGate" aria-labelledby="loginGateTitle">
+    <div class="login-card">
+      <div class="login-brand"><div class="brand-mark"><svg class="icon"><use href="#i-home"></use></svg></div><div><strong>Наш бюджет</strong><small>семья Степановых</small></div></div>
+      <h1 id="loginGateTitle">Спокойно посмотрим на цифры</h1>
+      <p class="login-copy">Введите пароль от своего аккаунта, чтобы открыть семейный бюджет.</p>
+      <div class="login-phrase-wrap" aria-live="polite"><p class="login-phrase" id="loginPhrase">План — это опора, а не повод быть идеальными.</p></div>
+      <form class="login-form" id="loginGateForm">
+        <div class="field"><label for="loginGateEmail">Email</label><input id="loginGateEmail" name="email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="loginGatePassword">Пароль</label><input id="loginGatePassword" name="password" type="password" autocomplete="current-password" minlength="6" required></div>
+        <div class="login-message" id="loginGateMessage" role="status"></div>
+        <div class="login-form-actions"><button class="button primary" type="submit">Открыть бюджет</button><button class="button ghost" id="loginGateCreateAccount" type="button">Создать аккаунт</button></div>
+      </form>
+      <div class="login-help">Пароль не сохраняется в приложении. После обновления страницы его нужно ввести снова.</div>
+    </div>
+  </section>
 
   <div class="app">
     <aside class="sidebar" aria-label="Основная навигация">
@@ -917,10 +972,22 @@
     (() => {
       'use strict';
       const STORAGE_KEY = 'stepanovy-family-budget-v1';
+      const LAST_EMAIL_KEY = 'stepanovy-family-budget-last-email';
       const SUPABASE_URL = 'https://hhawxjifdqlwyaxbfspc.supabase.co';
       const SUPABASE_KEY = 'sb_publishable_VbfT1VEsS1a-Lu-_EZlKKA_T52dbc07';
       const cloud = { client:null, user:null, householdId:null, channel:null, status:'sync', message:'Подключаюсь...', updatedAt:null, personalTransactions:[] };
       let cloudSaveTimer = null;
+      let loginPhraseTimer = null;
+      let loginPhraseIndex = 0;
+      const LOGIN_PHRASES = [
+        'План — это опора, а не повод быть идеальными.',
+        'Не нужно держать всё в голове. Здесь цифры можно просто разложить по местам.',
+        'Маленькие понятные шаги тоже считаются.',
+        'На деньги можно смотреть без спешки и без оценки себя.',
+        'Сегодня достаточно просто знать, что происходит с бюджетом.',
+        'Пусть у денег будет своё место, а у вас — чуть больше спокойствия.',
+        'Не обязательно решать всё сразу. Достаточно видеть следующий шаг.'
+      ];
       const today = new Date(2026, 8, 19); // фиксированная дата исходной рабочей версии; после 2026-09 используется системная дата
       const realToday = new Date();
       const navItems = [
@@ -1343,6 +1410,40 @@
       function cloudErrorMessage(error){ return error?.message || 'Не удалось выполнить запрос к Supabase.'; }
       function formatCloudTime(value){ if(!value)return ''; try{return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(value));}catch(_){return '';} }
 
+      function setLoginPhrase(index) {
+        const el=$('#loginPhrase'); if(!el)return;
+        el.classList.add('is-changing');
+        setTimeout(()=>{
+          loginPhraseIndex=((index%LOGIN_PHRASES.length)+LOGIN_PHRASES.length)%LOGIN_PHRASES.length;
+          el.textContent=LOGIN_PHRASES[loginPhraseIndex];
+          el.classList.remove('is-changing');
+        },220);
+      }
+
+      function startLoginPhrases() {
+        clearInterval(loginPhraseTimer);
+        setLoginPhrase(loginPhraseIndex);
+        loginPhraseTimer=setInterval(()=>setLoginPhrase(loginPhraseIndex+1),10000);
+      }
+
+      function showLoginGate(email='') {
+        const gate=$('#loginGate'),form=$('#loginGateForm');
+        document.body.classList.add('login-locked');
+        gate.hidden=false;
+        const remembered=email||localStorage.getItem(LAST_EMAIL_KEY)||'';
+        form.elements.email.value=remembered;
+        form.elements.password.value='';
+        $('#loginGateMessage').textContent='';
+        startLoginPhrases();
+        setTimeout(()=>remembered?form.elements.password.focus():form.elements.email.focus(),0);
+      }
+
+      function hideLoginGate() {
+        clearInterval(loginPhraseTimer);
+        $('#loginGate').hidden=true;
+        document.body.classList.remove('login-locked');
+      }
+
       function renderCloudPanel(){
         const el=$('#cloudPanel'); if(!el)return;
         if(!cloud.user){ el.innerHTML=`<div class="cloud-status ${cloud.status}"><div><strong>Общее хранилище</strong><div>${escapeHtml(cloud.message||'Нужно войти')}</div></div></div><button class="button primary" id="cloudOpenAuth" type="button">Войти</button>`; return; }
@@ -1361,7 +1462,9 @@
         setCloudStatus('sync','Выполняю вход...');
         const {data,error}=await cloud.client.auth.signInWithPassword({email,password});
         if(error) throw error;
-        cloud.user=data.user; await prepareCloud();
+        cloud.user=data.user;
+        localStorage.setItem(LAST_EMAIL_KEY,data.user?.email||email);
+        await prepareCloud();
       }
 
       async function signUp(email,password){
@@ -1435,6 +1538,7 @@
           subscribeCloud();
           if($('#authDialog').open) $('#authDialog').close();
           renderCloudPanel();
+          hideLoginGate();
         }catch(error){ setCloudStatus('error',cloudErrorMessage(error)); showAuth(cloudErrorMessage(error)); }
       }
 
@@ -1444,8 +1548,13 @@
           const {data:{session}}=await cloud.client.auth.getSession();
           cloud.user=session?.user||null;
           cloud.client.auth.onAuthStateChange((_event,sessionNow)=>{ cloud.user=sessionNow?.user||null; renderCloudPanel(); });
-          if(cloud.user) await prepareCloud(); else { setCloudStatus('auth','Войдите, чтобы открыть общую базу.'); showAuth(); }
-        }catch(error){ setCloudStatus('error',cloudErrorMessage(error)); showAuth(cloudErrorMessage(error)); }
+          setCloudStatus('auth','Введите пароль, чтобы открыть бюджет.');
+          showLoginGate(session?.user?.email||'');
+        }catch(error){
+          setCloudStatus('error',cloudErrorMessage(error));
+          showLoginGate('');
+          $('#loginGateMessage').textContent=cloudErrorMessage(error);
+        }
       }
       function showToast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3500); }
       function icon(id) { return `<svg class="icon" aria-hidden="true"><use href="#${id}"></use></svg>`; }
@@ -2457,9 +2566,26 @@
       $('#quickExpense').addEventListener('click',()=>openTransaction('expense')); $('#quickIncome').addEventListener('click',()=>openTransaction('income')); $('#addTransaction').addEventListener('click',()=>openTransaction('expense')); $('#addRecurring').addEventListener('click',()=>openRecurring()); $('#addRecurringIncome').addEventListener('click',()=>openRecurringIncome());
       $('#setBaseline').addEventListener('click',openBaseline); $('#transactionForm').addEventListener('submit',submitTransaction); $('#recurringForm').addEventListener('submit',submitRecurring); $('#recurringIncomeForm').addEventListener('submit',submitRecurringIncome); $('#calculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#recalculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#baselineForm').addEventListener('submit',submitBaseline); $('#moveForm').addEventListener('submit',submitMove); $('#deleteTransaction').addEventListener('click',deleteTransaction); $('#deleteRecurring').addEventListener('click',deleteRecurring); $('#deleteRecurringIncome').addEventListener('click',deleteRecurringIncome); $('#clearBaseline').addEventListener('click',clearBaseline);
       $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('click',()=>$('#importFile').click()); $('#importFile').addEventListener('change',e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value='';}); $('#resetData').addEventListener('click',resetData);
+      $('#loginGateForm').addEventListener('submit',async e=>{
+        e.preventDefault();
+        const form=e.currentTarget,email=form.elements.email.value.trim(),password=form.elements.password.value;
+        $('#loginGateMessage').textContent='';
+        if(!email||password.length<6){$('#loginGateMessage').textContent='Введите email и пароль минимум из 6 символов.';return;}
+        const button=form.querySelector('button[type="submit"]');
+        button.disabled=true;button.textContent='Проверяю…';
+        try{await signIn(email,password);}
+        catch(error){$('#loginGateMessage').textContent=cloudErrorMessage(error);form.elements.password.select();}
+        finally{button.disabled=false;button.textContent='Открыть бюджет';}
+      });
+      $('#loginGateCreateAccount').addEventListener('click',()=>{
+        const email=$('#loginGateEmail').value.trim();
+        const authForm=$('#authForm');
+        if(email)authForm.elements.email.value=email;
+        showAuth('Создайте аккаунт и подтвердите email по письму.');
+      });
       $('#authForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,email=form.elements.email.value.trim(),password=form.elements.password.value;$('#authMessage').textContent='';try{await signIn(email,password);}catch(error){$('#authMessage').textContent=cloudErrorMessage(error);}});
       $('#authSignUp').addEventListener('click',async()=>{const form=$('#authForm'),email=form.elements.email.value.trim(),password=form.elements.password.value;if(!email||password.length<6){$('#authMessage').textContent='Введите email и пароль минимум из 6 символов.';return;}try{await signUp(email,password);}catch(error){$('#authMessage').textContent=cloudErrorMessage(error);}});
-      document.addEventListener('click',async e=>{if(e.target.closest('#cloudOpenAuth')){showAuth();return;}if(e.target.closest('#cloudPull')){try{await loadCloudState({bootstrap:false});}catch(error){setCloudStatus('error',cloudErrorMessage(error));}return;}if(e.target.closest('#cloudPush')){await saveCloudState();return;}if(e.target.closest('#cloudSignOut')){if(cloud.channel)cloud.client.removeChannel(cloud.channel);await cloud.client.auth.signOut();cloud.user=null;cloud.householdId=null;cloud.personalTransactions=[];setCloudStatus('auth','Вы вышли. Локальная копия остаётся на этом устройстве.');showAuth();return;}});
+      document.addEventListener('click',async e=>{if(e.target.closest('#cloudOpenAuth')){showAuth();return;}if(e.target.closest('#cloudPull')){try{await loadCloudState({bootstrap:false});}catch(error){setCloudStatus('error',cloudErrorMessage(error));}return;}if(e.target.closest('#cloudPush')){await saveCloudState();return;}if(e.target.closest('#cloudSignOut')){if(cloud.channel)cloud.client.removeChannel(cloud.channel);await cloud.client.auth.signOut({scope:'local'});cloud.user=null;cloud.householdId=null;cloud.personalTransactions=[];setCloudStatus('auth','Вы вышли. Локальная копия остаётся на этом устройстве.');showLoginGate(localStorage.getItem(LAST_EMAIL_KEY)||'');return;}});
       document.addEventListener('submit',async e=>{if(e.target.id!=='cloudInviteForm')return;e.preventDefault();const email=e.target.elements.email.value.trim().toLowerCase();if(!email||!cloud.householdId)return;const {error}=await cloud.client.from('household_invitations').insert({household_id:cloud.householdId,email,invited_by:cloud.user.id});if(error){showToast(error.code==='23505'?'Приглашение для этого email уже создано':cloudErrorMessage(error));return;}e.target.reset();showToast('Приглашение сохранено. Муж может зарегистрироваться с этим email.');});
       $$('dialog').filter(dialog=>dialog.id!=='authDialog').forEach(dialog=>dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();}));
       initNav(); switchView(state.activeView||'overview'); renderCloudPanel(); initCloud();
