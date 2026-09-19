@@ -561,6 +561,54 @@
     .auth-actions { display:flex; gap:8px; flex-wrap:wrap; }
     .auth-message { min-height:24px; color:var(--muted); }
     @media (max-width:640px){ .cloud-invite { grid-template-columns:1fr; } }
+
+    .savings-widget {
+      margin-top: 24px; padding: 22px 24px; border: 1px solid #cfdcd4; border-radius: 22px;
+      background: linear-gradient(135deg, #f6fbf8, var(--surface)); display: grid;
+      grid-template-columns: minmax(220px, 1.2fr) repeat(2, minmax(150px, .7fr)) auto; gap: 22px; align-items: center;
+    }
+    .savings-widget-main { display: grid; gap: 4px; }
+    .savings-widget-main .eyebrow { color: var(--accent); opacity: 1; }
+    .savings-widget-main strong { font-size: 32px; line-height: 1.05; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+    .savings-widget-main span, .savings-widget-metric span { color: var(--muted); font-size: 13px; }
+    .savings-widget-metric { padding-left: 20px; border-left: 1px solid var(--border); }
+    .savings-widget-metric strong { display: block; margin-top: 4px; font-size: 20px; font-variant-numeric: tabular-nums; }
+    .savings-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .savings-summary-card { padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
+    .savings-summary-card span { color: var(--muted); font-size: 13px; }
+    .savings-summary-card strong { display: block; margin-top: 7px; font-size: 28px; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+    .savings-summary-card.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .savings-summary-card.primary span { color: rgba(255,255,255,.75); }
+    .savings-history { display: grid; gap: 10px; }
+    .savings-month-group { margin-top: 28px; }
+    .savings-month-group:first-child { margin-top: 0; }
+    .savings-month-title { margin: 0 0 10px; font-size: 17px; text-transform: capitalize; }
+    .savings-entry {
+      display: grid; grid-template-columns: 90px minmax(180px,1fr) 130px 140px; gap: 14px; align-items: center;
+      min-height: 66px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    }
+    .savings-entry time { color: var(--muted); font-size: 13px; }
+    .savings-entry-main strong { display: block; }
+    .savings-entry-main small { color: var(--muted); }
+    .savings-entry .money { color: var(--income); text-align: right; }
+    .savings-entry .status { justify-self: end; }
+    @media (max-width: 900px) {
+      .savings-widget { grid-template-columns: 1fr 1fr; }
+      .savings-widget-main, .savings-widget-action { grid-column: 1 / -1; }
+      .savings-widget-metric:first-of-type { padding-left: 0; border-left: 0; }
+      .savings-summary-grid { grid-template-columns: 1fr; }
+      .savings-entry { grid-template-columns: 72px minmax(0,1fr) auto; }
+      .savings-entry .status { grid-column: 2; justify-self: start; }
+      .savings-entry .money { grid-column: 3; grid-row: 1 / span 2; }
+    }
+    @media (max-width: 560px) {
+      .savings-widget { grid-template-columns: 1fr; gap: 14px; }
+      .savings-widget-main, .savings-widget-action { grid-column: auto; }
+      .savings-widget-metric { padding-left: 0; border-left: 0; padding-top: 12px; border-top: 1px solid var(--border); }
+      .savings-entry { grid-template-columns: 64px minmax(0,1fr); }
+      .savings-entry .money { grid-column: 2; grid-row: auto; text-align: left; }
+      .savings-entry .status { grid-column: 2; }
+    }
   </style>
 </head>
 <body>
@@ -568,6 +616,7 @@
   <svg class="sr-only" aria-hidden="true">
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></symbol>
     <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 6.5h14a2 2 0 0 1 2 2V19H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12"></path><path d="M16 11h5v4h-5a2 2 0 0 1 0-4Z"></path></symbol>
+    <symbol id="i-piggy" viewBox="0 0 24 24"><path d="M5 10a7 7 0 0 1 7-5c3.8 0 7 2.7 7 6v4a4 4 0 0 1-4 4H9a5 5 0 0 1-5-5v-2"></path><path d="M12 5V3h4v3M18 9h3v4h-2M8 19v2M16 19v2M8 10h.01"></path></symbol>
     <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></symbol>
     <symbol id="i-archive" viewBox="0 0 24 24"><path d="M4 7v13h16V7"></path><path d="M3 4h18v3H3z"></path><path d="M9 11h6"></path></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
@@ -619,6 +668,12 @@
               <div class="metric"><span>Запланировано расходов</span><strong id="plannedExpenses">0 ₽</strong></div>
             </div>
           </div>
+          <div class="savings-widget" aria-label="Копилка">
+            <div class="savings-widget-main"><div class="eyebrow">Копилка</div><strong id="savingsWidgetTotal">0 ₽</strong><span>фактически отложено</span></div>
+            <div class="savings-widget-metric"><span>В этом месяце</span><strong id="savingsWidgetMonth">0 ₽</strong></div>
+            <div class="savings-widget-metric"><span>В плане на этот месяц</span><strong id="savingsWidgetPlanned">0 ₽</strong></div>
+            <div class="savings-widget-action"><button class="button secondary" data-go="savings"><svg class="icon"><use href="#i-piggy"></use></svg>Открыть копилку</button></div>
+          </div>
           <div class="section">
             <div class="section-header"><div><h2>Периоды между доходами</h2><p>Каждый период заканчивается накануне следующего поступления.</p></div></div>
             <div class="periods" id="periods"></div>
@@ -645,6 +700,19 @@
               <div class="next-month-note">Здесь показаны запланированные операции. Чтобы изменить их, откройте следующий месяц.</div>
             </div>
           </section>
+        </section>
+
+        <section class="view" id="view-savings" data-view="savings" hidden>
+          <div class="page-heading"><div><h1>Копилка</h1><p>Все деньги, которые вы переводите в категорию «Копилка». Проведённые операции считаются фактически отложенными.</p></div><button class="button primary" id="addSavings"><svg class="icon"><use href="#i-plus"></use></svg>Добавить в копилку</button></div>
+          <div class="savings-summary-grid">
+            <div class="savings-summary-card primary"><span>Всего в копилке</span><strong id="savingsTotal">0 ₽</strong></div>
+            <div class="savings-summary-card"><span>Отложено в выбранном месяце</span><strong id="savingsMonthTotal">0 ₽</strong></div>
+            <div class="savings-summary-card"><span>Запланировано в выбранном месяце</span><strong id="savingsMonthPlanned">0 ₽</strong></div>
+          </div>
+          <div class="section">
+            <div class="section-header"><div><h2>Поступления в копилку</h2><p>История по всем месяцам. Непроведённые операции показываются как план.</p></div></div>
+            <div id="savingsHistory"></div>
+          </div>
         </section>
 
         <section class="view" id="view-recurring" data-view="recurring" hidden>
@@ -697,7 +765,7 @@
         <div class="field full" id="recurringTemplateField"><label for="txRecurringTemplate">Взять из постоянных расходов</label><select id="txRecurringTemplate" name="templateId"><option value="">Не из списка — заполнить вручную</option></select><span class="hint">Выбор заполнит название, категорию и сумму. Их можно изменить для этой операции.</span></div>
         <div class="field full"><label for="txName">Название</label><input id="txName" name="name" autocomplete="off" required maxlength="80"><div class="error-text" data-error="name"></div></div>
         <div class="field"><label for="txDate">Дата</label><input id="txDate" name="date" type="date" required><div class="error-text" data-error="date"></div></div>
-        <div class="field"><label for="txCategory">Категория</label><input id="txCategory" name="category" list="categoryList" autocomplete="off" maxlength="40"><datalist id="categoryList"><option value="Зарплата"><option value="Кредиты"><option value="Дом"><option value="Продукты"><option value="Транспорт"><option value="Дети"><option value="Личные расходы"><option value="Накопления"><option value="Разовое"></datalist></div>
+        <div class="field"><label for="txCategory">Категория</label><input id="txCategory" name="category" list="categoryList" autocomplete="off" maxlength="40"><datalist id="categoryList"><option value="Зарплата"><option value="Кредиты"><option value="Дом"><option value="Продукты"><option value="Транспорт"><option value="Дети"><option value="Личные расходы"><option value="Копилка"><option value="Накопления"><option value="Разовое"></datalist></div>
         <div class="field"><label for="txPlan">План, ₽</label><input id="txPlan" name="plan" type="number" min="0" step="1" inputmode="decimal" required><div class="error-text" data-error="plan"></div></div>
         <div class="field"><label for="txActual">Факт, ₽</label><input id="txActual" name="actual" type="number" min="0" step="1" inputmode="decimal" placeholder="Если отличается"><span class="hint">Пусто — используется сумма по плану.</span></div>
         <div class="field full"><label class="checkline"><input id="txPaid" name="paid" type="checkbox">Операция уже проведена</label></div>
@@ -714,7 +782,7 @@
         <div class="field full"><label for="recName">Название</label><input id="recName" name="name" required maxlength="80"><div class="error-text" data-error="name"></div></div>
         <div class="field"><label for="recDays">Дни месяца</label><input id="recDays" name="days" type="text" placeholder="Например: 5, 15, 25" required><span class="hint">Можно указать несколько дней через запятую.</span><div class="error-text" data-error="days"></div></div>
         <div class="field"><label for="recAmount">Сумма одного расхода, ₽</label><input id="recAmount" name="amount" type="number" min="0" step="1" inputmode="decimal" required><span class="hint">Эта сумма будет создана на каждую указанную дату.</span><div class="error-text" data-error="amount"></div></div>
-        <div class="field full"><label for="recCategory">Раздел</label><select id="recCategory" name="category"><option value="Кредиты">Кредиты</option><option value="Коммунальные">Коммунальные</option><option value="Продукты">Продукты</option><option value="Транспорт">Транспорт</option><option value="Дети">Дети</option><option value="Личные расходы">Личные расходы</option><option value="Накопления">Накопления</option><option value="Прочее">Прочее</option></select><span class="hint">По разделам постоянные расходы собраны на общей странице.</span></div>
+        <div class="field full"><label for="recCategory">Раздел</label><select id="recCategory" name="category"><option value="Кредиты">Кредиты</option><option value="Коммунальные">Коммунальные</option><option value="Продукты">Продукты</option><option value="Транспорт">Транспорт</option><option value="Дети">Дети</option><option value="Личные расходы">Личные расходы</option><option value="Копилка">Копилка</option><option value="Накопления">Накопления</option><option value="Прочее">Прочее</option></select><span class="hint">По разделам постоянные расходы собраны на общей странице.</span></div>
       </div></div>
       <div class="dialog-footer"><button type="button" class="button danger" id="deleteRecurring" hidden><svg class="icon"><use href="#i-trash"></use></svg>Удалить</button><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></div>
     </form>
@@ -789,6 +857,7 @@
       const navItems = [
         ['overview', 'i-home', 'План месяца'],
         ['transactions', 'i-wallet', 'Операции'],
+        ['savings', 'i-piggy', 'Копилка'],
         ['recurring', 'i-repeat', 'Постоянные'],
         ['backup', 'i-archive', 'Копия']
       ];
@@ -865,7 +934,7 @@
         const value=String(category||'').trim();
         if(value==='Кредиты')return 'Кредиты';
         if(value==='Дом'||value==='Коммунальные')return 'Коммунальные';
-        if(['Продукты','Транспорт','Дети','Личные расходы','Накопления'].includes(value))return value;
+        if(['Продукты','Транспорт','Дети','Личные расходы','Копилка','Накопления'].includes(value))return value;
         return 'Прочее';
       }
 
@@ -1313,6 +1382,77 @@
       function effectiveToday() { const d=selectedToday(state.selectedMonth); return monthKeyFrom(d) === state.selectedMonth ? d : (state.selectedMonth < monthKeyFrom(d) ? new Date(2099,0,1) : new Date(1900,0,1)); }
       function statusOf(tx) { const d=parseDate(tx.date), now=effectiveToday(); if (tx.paid) return ['paid','Проведено']; if (tx.type==='expense' && d < now) return ['overdue','Просрочено']; return ['planned','В плане']; }
 
+      function isSavingsTx(tx) {
+        return Boolean(tx && tx.type==='expense' && String(tx.category||'').trim().toLowerCase()==='копилка');
+      }
+
+      function savingsEntries() {
+        const entries=[];
+        Object.entries(state.months||{}).forEach(([monthKey,monthData])=>{
+          (monthData.transactions||[]).filter(isSavingsTx).forEach(tx=>entries.push({monthKey,tx}));
+        });
+        return entries.sort((a,b)=>b.tx.date.localeCompare(a.tx.date)||String(a.tx.name||'').localeCompare(String(b.tx.name||''),'ru'));
+      }
+
+      function savingsSummary() {
+        const entries=savingsEntries();
+        let total=0,monthTotal=0,monthPlanned=0;
+        entries.forEach(({monthKey,tx})=>{
+          if(tx.paid){
+            const value=amountOf(tx);
+            total+=value;
+            if(monthKey===state.selectedMonth)monthTotal+=value;
+          }else if(monthKey===state.selectedMonth){
+            monthPlanned+=Number(tx.plan||0);
+          }
+        });
+        return {entries,total,monthTotal,monthPlanned};
+      }
+
+      function renderSavingsWidget() {
+        const totalEl=$('#savingsWidgetTotal'); if(!totalEl)return;
+        const s=savingsSummary();
+        totalEl.textContent=formatMoney(s.total);
+        $('#savingsWidgetMonth').textContent=formatMoney(s.monthTotal);
+        $('#savingsWidgetPlanned').textContent=formatMoney(s.monthPlanned);
+      }
+
+      function renderSavings() {
+        const s=savingsSummary();
+        $('#savingsTotal').textContent=formatMoney(s.total);
+        $('#savingsMonthTotal').textContent=formatMoney(s.monthTotal);
+        $('#savingsMonthPlanned').textContent=formatMoney(s.monthPlanned);
+        const history=$('#savingsHistory');
+        if(!s.entries.length){
+          history.innerHTML='<div class="panel empty"><strong>Копилка пока пуста</strong>Добавьте расход с категорией «Копилка» — проведённая сумма появится здесь.</div>';
+          return;
+        }
+        const grouped=new Map();
+        s.entries.forEach(entry=>{
+          const key=entry.tx.date.slice(0,7);
+          if(!grouped.has(key))grouped.set(key,[]);
+          grouped.get(key).push(entry.tx);
+        });
+        history.innerHTML=[...grouped.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([key,list])=>{
+          const [year,mon]=key.split('-').map(Number);
+          const title=monthFormat.format(new Date(year,mon-1,1));
+          const rows=list.map(tx=>{
+            const amount=tx.paid?amountOf(tx):Number(tx.plan||0);
+            const statusClass=tx.paid?'paid':'planned';
+            const statusLabel=tx.paid?'В копилке':'В плане';
+            return '<div class="savings-entry"><time datetime="'+tx.date+'">'+fullDate.format(parseDate(tx.date))+'</time><div class="savings-entry-main"><strong>'+escapeHtml(tx.name||'Пополнение копилки')+'</strong><small>'+escapeHtml(tx.note||'Перевод из семейного бюджета')+'</small></div><span class="status '+statusClass+'">'+statusLabel+'</span><span class="money">+'+formatMoney(amount)+'</span></div>';
+          }).join('');
+          return '<section class="savings-month-group"><h2 class="savings-month-title">'+escapeHtml(title)+'</h2><div class="savings-history">'+rows+'</div></section>';
+        }).join('');
+      }
+
+      function openSavingsTransaction() {
+        openTransaction('expense');
+        const form=$('#transactionForm');
+        form.elements.category.value='Копилка';
+        if(!form.elements.name.value)form.elements.name.value='Пополнение копилки';
+      }
+
       function initNav() {
         $$('[data-nav]').forEach(container => {
           container.innerHTML = navItems.map(([id,ic,label]) => `<button class="nav-button" data-view-target="${id}">${icon(ic)}<span>${label}</span></button>`).join('');
@@ -1333,8 +1473,9 @@
         $('#monthName').textContent = monthFormat.format(d);
         const systemKey=monthKeyFrom(realToday);
         $('#monthState').textContent = state.selectedMonth === systemKey ? 'текущий месяц' : state.selectedMonth === '2026-09' ? 'данные из Excel' : 'плановый месяц';
-        if (state.activeView === 'overview') renderOverview();
+        if (state.activeView === 'overview') { renderOverview(); renderSavingsWidget(); }
         if (state.activeView === 'transactions') renderTransactions();
+        if (state.activeView === 'savings') renderSavings();
         if (state.activeView === 'recurring') renderRecurring();
       }
 
@@ -1591,7 +1732,7 @@
           }).join('');
         }
 
-        const order=['Кредиты','Коммунальные','Продукты','Транспорт','Дети','Личные расходы','Накопления','Прочее'];
+        const order=['Кредиты','Коммунальные','Продукты','Транспорт','Дети','Личные расходы','Копилка','Накопления','Прочее'];
         const grouped=new Map(order.map(section=>[section,[]]));
         state.recurring.forEach(rule=>grouped.get(recurringSection(rule.category)).push(rule));
         const grandTotal=state.recurring.filter(rule=>rule.active).reduce((sum,rule)=>sum+Number(rule.amount||0)*recurringDays(rule).length,0);
@@ -1994,6 +2135,7 @@
       document.addEventListener('change',e=>{
         if(e.target.matches('#recurringIncomeForm input[name="incomeMode"]')){recurringIncomeSalaryCalculated=false;updateRecurringIncomeModeUI();return;}
         if(e.target.id==='movePeriodSelect'){updateMoveTargetFields();return;}
+        if(e.target.id==='txCategory'&&String(e.target.value||'').trim().toLowerCase()==='копилка'){const form=$('#transactionForm');if(!form.elements.name.value.trim())form.elements.name.value='Пополнение копилки';return;}
         if(e.target.matches('#transactionForm input[name="type"]')){$('#recurringTemplateField').hidden=Boolean(editingTransaction)||e.target.value!=='expense';return;}
         if(e.target.id==='txRecurringTemplate'&&e.target.value){const rule=state.recurring.find(r=>r.id===e.target.value);if(rule){const form=$('#transactionForm');form.elements.name.value=rule.name;form.elements.category.value=rule.category||'';form.elements.plan.value=rule.amount;const [year,mon]=state.selectedMonth.split('-').map(Number);const days=recurringDays(rule);const matchingDay=transactionPeriod?days.find(day=>day>=transactionPeriod.start&&day<=transactionPeriod.end):days[0];if(matchingDay)form.elements.date.value=iso(year,mon,matchingDay);form.elements.name.focus();}return;}
         if(e.target.matches('.toggle-recurring-income')){const r=(state.recurringIncome||[]).find(x=>x.id===e.target.closest('[data-income-id]').dataset.incomeId);if(!r)return;r.active=e.target.checked;if(!r.active){Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==r.id||t.paid);});}else{generateRecurring(state,state.selectedMonth);}save();render();showToast(r.active?'Постоянный доход включён':'Постоянный доход выключен');return;}
@@ -2006,6 +2148,7 @@
       document.addEventListener('drop',e=>{const period=e.target.closest('.period-group');if(!period||!draggedTransactionId)return;e.preventDefault();const id=draggedTransactionId,start=Number(period.dataset.periodStart),end=Number(period.dataset.periodEnd);draggedTransactionId=null;period.classList.remove('drop-target');moveTransaction(id,start,end);});
       document.addEventListener('dragend',()=>{draggedTransactionId=null;$$('.dragging,.drop-target').forEach(el=>el.classList.remove('dragging','drop-target'));});
       $('#prevMonth').addEventListener('click',()=>changeMonth(-1)); $('#nextMonth').addEventListener('click',()=>changeMonth(1));
+      $('#addSavings').addEventListener('click',openSavingsTransaction);
       $('#quickExpense').addEventListener('click',()=>openTransaction('expense')); $('#quickIncome').addEventListener('click',()=>openTransaction('income')); $('#addTransaction').addEventListener('click',()=>openTransaction('expense')); $('#addRecurring').addEventListener('click',()=>openRecurring()); $('#addRecurringIncome').addEventListener('click',()=>openRecurringIncome());
       $('#setBaseline').addEventListener('click',openBaseline); $('#transactionForm').addEventListener('submit',submitTransaction); $('#recurringForm').addEventListener('submit',submitRecurring); $('#recurringIncomeForm').addEventListener('submit',submitRecurringIncome); $('#calculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#recalculateRecurringIncomeSalary').addEventListener('click',calculateRecurringIncomeSalary); $('#baselineForm').addEventListener('submit',submitBaseline); $('#moveForm').addEventListener('submit',submitMove); $('#deleteTransaction').addEventListener('click',deleteTransaction); $('#deleteRecurring').addEventListener('click',deleteRecurring); $('#deleteRecurringIncome').addEventListener('click',deleteRecurringIncome); $('#clearBaseline').addEventListener('click',clearBaseline);
       $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('click',()=>$('#importFile').click()); $('#importFile').addEventListener('change',e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value='';}); $('#resetData').addEventListener('click',resetData);
