@@ -652,7 +652,7 @@
       overflow:auto;
       background:
         linear-gradient(180deg, rgba(245,247,246,.12), rgba(17,29,25,.22)),
-        url('./assets/login-bg.jpg') center center / cover no-repeat;
+        url('./DSCF7455%201.jpg') center center / cover no-repeat;
       background-color:#d9dedb;
     }
     .login-gate[hidden] { display:none !important; }
@@ -1601,11 +1601,30 @@
 
       function renderCloudPanel(){
         const el=$('#cloudPanel'); if(!el)return;
-        if(!cloud.user){ el.innerHTML=`<div class="cloud-status ${cloud.status}"><div><strong>Общее хранилище</strong><div>${escapeHtml(cloud.message||'Нужно войти')}</div></div></div><button class="button primary" id="cloudOpenAuth" type="button">Войти</button>`; return; }
+        if(!cloud.user){
+          el.dataset.userId='';
+          el.innerHTML=`<div class="cloud-status ${cloud.status}"><div><strong>Общее хранилище</strong><div>${escapeHtml(cloud.message||'Нужно войти')}</div></div></div><button class="button primary" id="cloudOpenAuth" type="button">Войти</button>`;
+          return;
+        }
+
         const stamp=cloud.updatedAt?` Последнее обновление: ${formatCloudTime(cloud.updatedAt)}.`:'';
+        const statusText=`${cloud.message||'Данные синхронизируются.'}${stamp}`;
+
+        // Не пересобираем всю панель при каждом обновлении статуса:
+        // иначе поле приглашения теряет фокус и введённый email.
+        if(el.dataset.userId===cloud.user.id && $('#cloudStatusCard',el) && $('#cloudStatusText',el)){
+          const statusCard=$('#cloudStatusCard',el);
+          statusCard.className=`cloud-status ${cloud.status}`;
+          $('#cloudStatusText',el).textContent=statusText;
+          const emailEl=$('#cloudUserEmail',el);
+          if(emailEl) emailEl.textContent=cloud.user.email||'';
+          return;
+        }
+
+        el.dataset.userId=cloud.user.id;
         el.innerHTML=`
-          <div class="cloud-status ${cloud.status}"><div><strong>Supabase подключён</strong><div>${escapeHtml(cloud.message||'Данные синхронизируются.')}${escapeHtml(stamp)}</div></div></div>
-          <div class="cloud-user"><div>Вы вошли как <strong>${escapeHtml(cloud.user.email||'')}</strong></div><div class="cloud-actions"><button class="button secondary" id="cloudPull" type="button">Загрузить из облака</button><button class="button secondary" id="cloudPush" type="button">Сохранить сейчас</button><button class="button secondary" id="cloudSignOut" type="button">Выйти</button></div></div>
+          <div class="cloud-status ${cloud.status}" id="cloudStatusCard"><div><strong>Supabase подключён</strong><div id="cloudStatusText">${escapeHtml(statusText)}</div></div></div>
+          <div class="cloud-user"><div>Вы вошли как <strong id="cloudUserEmail">${escapeHtml(cloud.user.email||'')}</strong></div><div class="cloud-actions"><button class="button secondary" id="cloudPull" type="button">Загрузить из облака</button><button class="button secondary" id="cloudPush" type="button">Сохранить сейчас</button><button class="button secondary" id="cloudSignOut" type="button">Выйти</button></div></div>
           <form class="cloud-invite" id="cloudInviteForm"><div class="field"><label for="cloudInviteEmail">Пригласить мужа по email</label><input id="cloudInviteEmail" name="email" type="email" required placeholder="email@example.com"><span class="hint">Он создаёт отдельный аккаунт с этим email и автоматически подключается к вашей семье.</span></div><button class="button primary" type="submit">Пригласить</button></form>`;
       }
 
