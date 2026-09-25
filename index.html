@@ -293,6 +293,7 @@
     .dialog-header h2 { margin: 0; font-size: 21px; }
     .dialog-body { padding: 22px 24px; overflow: auto; max-height: calc(100dvh - 180px); }
     .dialog-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 24px 22px; border-top: 1px solid var(--border); }
+    .dialog-footer-leading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .dialog-footer-right { display: flex; gap: 10px; margin-left: auto; }
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
     .field { display: grid; gap: 7px; }
@@ -350,6 +351,8 @@
       .form-grid { grid-template-columns: 1fr; }
       .field.full { grid-column: auto; }
       .dialog-footer { align-items: stretch; flex-direction: column-reverse; }
+      .dialog-footer-leading { display: grid; gap: 8px; }
+      .dialog-footer-leading .button { width: 100%; }
       .dialog-footer-right { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
       .dialog-footer .danger { width: 100%; }
     }
@@ -935,7 +938,7 @@
         </section>
 
         <section class="view" id="view-transactions" data-view="transactions" hidden>
-          <div class="page-heading"><div><h1>Доходы и расходы</h1><p>Расход можно перетащить в другой период или перенести кнопкой со стрелками.</p></div><button class="button primary" id="addTransaction"><svg class="icon"><use href="#i-plus"></use></svg>Добавить операцию</button></div>
+          <div class="page-heading"><div><h1>Доходы и расходы</h1><p>Чтобы перенести часть расхода, откройте его на редактирование и нажмите «Перенести часть».</p></div><button class="button primary" id="addTransaction"><svg class="icon"><use href="#i-plus"></use></svg>Добавить операцию</button></div>
           <div class="section-header"><div class="filters" id="filters"></div><div id="transactionCount" class="muted"></div></div>
           <section class="calendar-panel" aria-labelledby="calendarTitle"><div class="calendar-heading"><div><h2 id="calendarTitle">Календарь месяца</h2><p>Остаток рассчитан на конец каждого дня с учётом плана.</p></div><div class="calendar-legend" aria-label="Обозначения"><span class="income-key">Доходы</span><span class="expense-key">Расходы</span></div></div><div class="calendar-scroll"><div class="calendar-grid" id="budgetCalendar"></div></div></section>
           <div class="period-ledger-list" id="transactionsList"></div>
@@ -1035,7 +1038,7 @@
         <div class="field full"><label class="checkline"><input id="txPaid" name="paid" type="checkbox">Операция уже проведена</label></div>
         <div class="field full"><label for="txNote">Комментарий</label><input id="txNote" name="note" maxlength="120" autocomplete="off"></div>
       </div></div>
-      <div class="dialog-footer"><button type="button" class="button danger" id="deleteTransaction" hidden><svg class="icon"><use href="#i-trash"></use></svg>Удалить</button><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></div>
+      <div class="dialog-footer"><div class="dialog-footer-leading"><button type="button" class="button secondary" id="moveEditedTransaction" hidden><svg class="icon"><use href="#i-move"></use></svg>Перенести часть</button><button type="button" class="button danger" id="deleteTransaction" hidden><svg class="icon"><use href="#i-trash"></use></svg>Удалить</button></div><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></div>
     </form>
   </dialog>
 
@@ -1537,6 +1540,7 @@
       if(ensureRecurringIncomeSchedule(state))repairedState=true;
       if(repairedState)localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
       let editingTransaction = null;
+      let transactionInitialSnapshot = null;
       let editingPrivateTransaction = null;
       let transactionPeriod = null;
       let editingRecurring = null;
@@ -2338,6 +2342,7 @@
         const tx=id?month().transactions.find(t=>t.id===id):null;
         $('#transactionTitle').textContent=tx?'Редактирование операции':transactionPeriod?`Расход в период ${transactionPeriod.start}–${transactionPeriod.end}`:'Новая операция';
         $('#deleteTransaction').hidden=!tx;
+        $('#moveEditedTransaction').hidden=!(tx&&tx.type==='expense');
         const [year,mon]=state.selectedMonth.split('-').map(Number);
         const periodDate=transactionPeriod?iso(year,mon,transactionPeriod.start):defaultDate();
         const data=tx||{type,name:'',date:periodDate,category:type==='income'?'Зарплата':'',plan:'',actual:'',paid:false,note:''};
@@ -2346,6 +2351,7 @@
         $$('input[name="type"]',form).forEach(input=>input.disabled=Boolean(transactionPeriod)&&input.value==='income');
         templateSelect.innerHTML='<option value="">Не из списка — заполнить вручную</option>'+state.recurring.filter(r=>r.active).sort((a,b)=>a.name.localeCompare(b.name)).map(r=>`<option value="${r.id}">${escapeHtml(r.name)} — ${formatMoney(r.amount)} (${recurringDays(r).join(', ')})</option>`).join('');
         form.elements.type.value=data.type; form.elements.name.value=data.name; form.elements.date.value=data.date; form.elements.category.value=data.category||''; form.elements.plan.value=data.plan; form.elements.actual.value=data.actual??''; form.elements.paid.checked=Boolean(data.paid); form.elements.note.value=data.note||'';
+        transactionInitialSnapshot=tx?transactionFormSnapshot(form):null;
         if(transactionPeriod){
           form.elements.date.min=iso(year,mon,transactionPeriod.start);
           form.elements.date.max=iso(year,mon,transactionPeriod.end);
@@ -2429,6 +2435,13 @@
 
       function defaultDate(){const [y,m]=state.selectedMonth.split('-').map(Number);const d=selectedToday(state.selectedMonth);return iso(y,m,monthKeyFrom(d)===state.selectedMonth?d.getDate():1);}
       function closeDialog(dialog){dialog.close();}
+      function transactionFormSnapshot(form){return JSON.stringify([...new FormData(form).entries()]);}
+      function startMoveFromTransactionEditor(){
+        if(!editingTransaction)return;
+        const form=$('#transactionForm');
+        if(transactionFormSnapshot(form)!==transactionInitialSnapshot){showToast('Сначала сохраните изменения расхода или отмените их, затем перенесите платёж.');return;}
+        openMoveTransaction(editingTransaction);
+      }
       function clearErrors(form){$$('.error-text',form).forEach(e=>e.textContent='');}
       function setError(form,name,text){const el=$(`[data-error="${name}"]`,form);if(el)el.textContent=text;form.elements[name]?.focus();}
 
@@ -2739,13 +2752,13 @@
           if(!targetDate||targetDate.slice(0,7)!==targetKey){setError(form,'targetDate','Выберите дату в следующем месяце.');return;}
           result=moveToAnotherMonth(movingTransactionId,targetKey,targetDate,amount);
           if(!result)return;
-          save();closeDialog($('#moveDialog'));render();
+          save();closeDialog($('#moveDialog'));if($('#transactionDialog').open)closeDialog($('#transactionDialog'));editingTransaction=null;transactionInitialSnapshot=null;render();
           showToast(result.split?`${formatMoney(result.amount)} перенесено в следующий месяц, в текущем осталось ${formatMoney(result.remaining)}`:`Расход «${result.tx.name}» перенесён в следующий месяц`);
         }else{
           const parts=value.split(':');
           const start=Number(parts[1]),end=Number(parts[2]);
           result=applySplitMove(movingTransactionId,start,end,amount);if(!result)return;
-          save();closeDialog($('#moveDialog'));render();
+          save();closeDialog($('#moveDialog'));if($('#transactionDialog').open)closeDialog($('#transactionDialog'));editingTransaction=null;transactionInitialSnapshot=null;render();
           showToast(result.split?`${formatMoney(result.amount)} перенесено, в текущем периоде осталось ${formatMoney(result.remaining)}`:`Расход «${result.tx.name}» перенесён на ${result.newDay} число`);
         }
         movingTransactionId=null;
@@ -2771,6 +2784,7 @@
         const privatePay=e.target.closest('.pay-private'); if(privatePay){paySharedPrivately(privatePay.closest('[data-id]').dataset.id);return;}
         const editPrivate=e.target.closest('.edit-private'); if(editPrivate){openPrivateTransaction('income',editPrivate.closest('[data-private-id]').dataset.privateId);return;}
         const editTx=e.target.closest('.edit-tx'); if(editTx){openTransaction('expense',editTx.closest('[data-id]').dataset.id);return;}
+        const moveEdited=e.target.closest('#moveEditedTransaction'); if(moveEdited){startMoveFromTransactionEditor();return;}
         const pay=e.target.closest('.toggle-paid'); if(pay){togglePaid(pay.closest('[data-id]').dataset.id);return;}
         const move=e.target.closest('.move-tx'); if(move){openMoveTransaction(move.closest('[data-id]').dataset.id);return;}
         const addPeriod=e.target.closest('.add-period-expense'); if(addPeriod){openTransaction('expense',null,{start:Number(addPeriod.dataset.periodStart),end:Number(addPeriod.dataset.periodEnd)});return;}
