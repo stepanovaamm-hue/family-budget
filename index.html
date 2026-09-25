@@ -2661,6 +2661,7 @@
         if(amount===total){const moved=applyMove(id,start,end);return moved?{...moved,split:false,amount}:null;}
         const [year,mon]=state.selectedMonth.split('-').map(Number),oldDay=parseDate(tx.date).getDate(),newDay=Math.min(Math.max(oldDay,start),end),remaining=total-amount;
         updatePartiallyMovedSource(tx,remaining);
+        freezeRecurringSplitSource(month(),tx);
         const movedTx={...tx,id:uid('tx'),date:iso(year,mon,newDay),plan:amount,actual:null,paid:false,note:[tx.note,`Остаток перенесён из периода с ${oldDay} числа`].filter(Boolean).join(' · ')};
         delete movedTx.recurringId;delete movedTx.recurringDay;
         month().transactions.push(movedTx);
@@ -2684,6 +2685,16 @@
         tx.plan=remaining;
         if(tx.actual!==null&&tx.actual!==undefined&&tx.actual!=='')tx.actual=Math.min(Number(tx.actual),remaining);
         tx.paid=Boolean(tx.paid&&tx.actual!==null&&tx.actual!==undefined&&tx.actual!==''&&Number(tx.actual)>=remaining);
+      }
+
+      function freezeRecurringSplitSource(monthData,tx){
+        if(!tx?.recurringId)return;
+        // После разделения остаток больше не равен сумме шаблона. Зафиксируем
+        // эту часть как разовую, иначе редактирование постоянного расхода
+        // может перезаписать её план и потерять разделение платежа.
+        suppressRecurringInstance(monthData,tx);
+        delete tx.recurringId;
+        delete tx.recurringDay;
       }
 
       function moveToAnotherMonth(id,targetKey,targetDate,moveAmount){
@@ -2711,6 +2722,7 @@
 
         const remaining=total-amount;
         updatePartiallyMovedSource(tx,remaining);
+        freezeRecurringSplitSource(source,tx);
         const moved={...tx,id:uid('tx'),date:targetDate,plan:amount,actual:null,paid:false,note:[tx.note,'Часть платежа перенесена из предыдущего месяца'].filter(Boolean).join(' · ')};
         delete moved.recurringId; delete moved.recurringDay;
         target.transactions.push(moved);
