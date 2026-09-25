@@ -1250,6 +1250,14 @@
         monthData.suppressedRecurringInstances=[...suppressed];
       }
 
+      function recordDeletedTransaction(monthData, tx) {
+        if(!tx?.id)return;
+        const deleted=new Set(monthData.deletedTransactionIds||[]);
+        deleted.add(tx.id);
+        monthData.deletedTransactionIds=[...deleted];
+        suppressRecurringInstance(monthData,tx);
+      }
+
       function generateRecurring(target, key) {
         if (!target.months[key]) target.months[key] = { openingBalance:0, transactions:[] };
         const month = target.months[key];
@@ -1548,10 +1556,44 @@
 
       function persistLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
       function sharedState() { return { version:1, months:state.months, recurring:state.recurring||[], recurringIncome:state.recurringIncome||[], savingsForecastDate:state.savingsForecastDate||'', migrations:state.migrations||{} }; }
+      function preserveDeletionMarkers(months, localMonths) {
+        let changed=false;
+        const monthKeys=new Set([...Object.keys(months||{}),...Object.keys(localMonths||{})]);
+        monthKeys.forEach(key=>{
+          const localMonth=localMonths?.[key];
+          const localSuppressed=localMonth?.suppressedRecurringInstances;
+          const localDeleted=localMonth?.deletedTransactionIds;
+          const remoteMonth=months[key];
+          const remoteSuppressed=remoteMonth?.suppressedRecurringInstances;
+          const remoteDeleted=remoteMonth?.deletedTransactionIds;
+          const hasLocalMarkers=(Array.isArray(localSuppressed)&&localSuppressed.length)||(Array.isArray(localDeleted)&&localDeleted.length);
+          const hasRemoteMarkers=(Array.isArray(remoteSuppressed)&&remoteSuppressed.length)||(Array.isArray(remoteDeleted)&&remoteDeleted.length);
+          if(!hasLocalMarkers&&!hasRemoteMarkers)return;
+          if(!months[key])months[key]={...localMonth,transactions:[...(localMonth?.transactions||[])]};
+          const monthData=months[key];
+          const suppressed=new Set([...(Array.isArray(monthData.suppressedRecurringInstances)?monthData.suppressedRecurringInstances:[]),...(Array.isArray(localSuppressed)?localSuppressed:[])]);
+          const deleted=new Set([...(Array.isArray(monthData.deletedTransactionIds)?monthData.deletedTransactionIds:[]),...(Array.isArray(localDeleted)?localDeleted:[])]);
+          if(suppressed.size!==(monthData.suppressedRecurringInstances||[]).length||deleted.size!==(monthData.deletedTransactionIds||[]).length)changed=true;
+          monthData.suppressedRecurringInstances=[...suppressed];
+          monthData.deletedTransactionIds=[...deleted];
+          const before=monthData.transactions||[];
+          monthData.transactions=before.filter(tx=>{
+            if(deleted.has(tx?.id))return false;
+            if(!tx?.recurringId)return true;
+            const day=Number(tx.recurringDay||parseDate(tx.date).getDate());
+            const deletedByDay=suppressed.has(recurringInstanceKey(tx.recurringId,day));
+            const deletedSalaryPart=tx.salaryPart&&suppressed.has(salaryInstanceKey(tx.recurringId,tx.salaryPart));
+            return !deletedByDay&&!deletedSalaryPart;
+          });
+          if(monthData.transactions.length!==before.length)changed=true;
+        });
+        return changed;
+      }
       function mergeSharedState(remote) {
         if(!remote || remote.version!==1 || !remote.months || !Array.isArray(remote.recurring)) throw new Error('Некорректный формат данных в облаке');
-        state = { ...state, months:remote.months, recurring:remote.recurring, recurringIncome:Array.isArray(remote.recurringIncome)?remote.recurringIncome:[], savingsForecastDate:remote.savingsForecastDate||state.savingsForecastDate||'', migrations:remote.migrations||{} };
-        let changed=false;
+        const months=remote.months;
+        let changed=preserveDeletionMarkers(months,state.months);
+        state = { ...state, months, recurring:remote.recurring, recurringIncome:Array.isArray(remote.recurringIncome)?remote.recurringIncome:[], savingsForecastDate:remote.savingsForecastDate||state.savingsForecastDate||'', migrations:remote.migrations||{} };
         if(migrateLegacyMashaSalary(state))changed=true;
         if(ensureMashaSalaryV17(state))changed=true;
         if(repairRecurringMoves(state))changed=true;
@@ -2560,7 +2602,7 @@
         if(confirm('Удалить эту операцию?')){
           const monthData=month();
           const tx=monthData.transactions.find(t=>t.id===editingTransaction);
-          if(tx?.recurringId)suppressRecurringInstance(monthData,tx);
+          if(tx)recordDeletedTransaction(monthData,tx);
           monthData.transactions=monthData.transactions.filter(t=>t.id!==editingTransaction);
           if(monthData.cashBaseline)monthData.cashBaseline.includedTransactionIds=(monthData.cashBaseline.includedTransactionIds||[]).filter(id=>id!==editingTransaction);
           editingTransaction=null;
@@ -2576,7 +2618,7 @@
         if(!affected.length)return;
         const incomes=affected.filter(t=>t.type==='income').length,expenses=affected.filter(t=>t.type==='expense').length;
         if(!confirm(`Удалить период ${start}–${end} и все его операции?\n\nБудут удалены: ${incomes} ${plural(incomes,'доход','дохода','доходов')} и ${expenses} ${plural(expenses,'расход','расхода','расходов')}.`))return;
-        affected.filter(t=>t.recurringId).forEach(tx=>suppressRecurringInstance(monthData,tx));
+        affected.forEach(tx=>recordDeletedTransaction(monthData,tx));
         const ids=new Set(affected.map(t=>t.id));
         monthData.transactions=monthData.transactions.filter(t=>!ids.has(t.id));
         if(monthData.cashBaseline)monthData.cashBaseline.includedTransactionIds=(monthData.cashBaseline.includedTransactionIds||[]).filter(id=>!ids.has(id));
