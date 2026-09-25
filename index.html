@@ -1114,7 +1114,7 @@
       <div class="dialog-body"><div class="form-grid">
         <div class="field full"><label for="movePeriodSelect">Куда перенести</label><select id="movePeriodSelect" name="period" required></select><span class="hint">Можно выбрать другой период текущего месяца или следующий месяц.</span></div>
         <div class="field full" id="moveDateField" hidden><label for="moveTargetDate">Дата в следующем месяце</label><input id="moveTargetDate" name="targetDate" type="date"><span class="hint">Выберите точную дату перенесённого платежа.</span><div class="error-text" data-error="targetDate"></div></div>
-        <div class="field full"><label for="moveAmount">Сумма переноса, ₽</label><input id="moveAmount" name="amount" type="number" min="1" step="1" inputmode="decimal" required><span class="hint" id="moveAmountHint">Чтобы перенести только остаток, укажите его сумму. В текущем периоде останется оплаченная часть.</span><div class="error-text" data-error="amount"></div></div>
+        <div class="field full"><label for="moveAmount">Сумма переноса, ₽</label><input id="moveAmount" name="amount" type="number" min="1" step="1" inputmode="decimal" required><span class="hint" id="moveAmountHint">Укажите сумму части платежа. Неперенесённая сумма останется в текущем периоде.</span><div class="error-text" data-error="amount"></div></div>
       </div></div>
       <div class="dialog-footer"><div class="dialog-footer-right"><button type="button" class="button secondary" data-close>Отмена</button><button class="button primary" type="submit">Перенести</button></div></div>
     </form>
@@ -2644,11 +2644,10 @@
 
       function applySplitMove(id,start,end,moveAmount){
         const tx=month().transactions.find(t=>t.id===id);if(!tx||tx.type!=='expense')return null;
-        const total=Number(tx.plan||0),amount=Number(moveAmount);if(!Number.isFinite(amount)||amount<=0||amount>total)return null;
+        const total=Number(tx.plan||0),amount=Number(moveAmount);if(!Number.isFinite(amount)||amount<=0||amount>moveableAmount(tx)||(requiresWholeMove(tx)&&amount!==total))return null;
         if(amount===total){const moved=applyMove(id,start,end);return moved?{...moved,split:false,amount}:null;}
         const [year,mon]=state.selectedMonth.split('-').map(Number),oldDay=parseDate(tx.date).getDate(),newDay=Math.min(Math.max(oldDay,start),end),remaining=total-amount;
-        tx.plan=remaining;
-        if(tx.actual!==null&&tx.actual!==undefined&&tx.actual!=='')tx.actual=Math.min(Number(tx.actual),remaining);
+        updatePartiallyMovedSource(tx,remaining);
         const movedTx={...tx,id:uid('tx'),date:iso(year,mon,newDay),plan:amount,actual:null,paid:false,note:[tx.note,`Остаток перенесён из периода с ${oldDay} числа`].filter(Boolean).join(' · ')};
         delete movedTx.recurringId;delete movedTx.recurringDay;
         month().transactions.push(movedTx);
@@ -2657,12 +2656,29 @@
 
       function moveTransaction(id,start,end){const result=applyMove(id,start,end);if(!result)return;save();render();showToast(`Расход «${result.tx.name}» перенесён на ${result.newDay} число`);}
 
+      function moveableAmount(tx){
+        const plan=Number(tx?.plan||0),hasActual=tx?.actual!==null&&tx?.actual!==undefined&&tx?.actual!=='';
+        const actual=hasActual?Number(tx.actual):0;
+        return hasActual&&Number.isFinite(actual)&&actual>0&&actual<plan?plan-actual:plan;
+      }
+
+      function requiresWholeMove(tx){
+        const plan=Number(tx?.plan||0),hasActual=tx?.actual!==null&&tx?.actual!==undefined&&tx?.actual!=='';
+        return hasActual&&Number.isFinite(Number(tx.actual))&&Number(tx.actual)>=plan&&plan>0;
+      }
+
+      function updatePartiallyMovedSource(tx,remaining){
+        tx.plan=remaining;
+        if(tx.actual!==null&&tx.actual!==undefined&&tx.actual!=='')tx.actual=Math.min(Number(tx.actual),remaining);
+        tx.paid=Boolean(tx.paid&&tx.actual!==null&&tx.actual!==undefined&&tx.actual!==''&&Number(tx.actual)>=remaining);
+      }
+
       function moveToAnotherMonth(id,targetKey,targetDate,moveAmount){
         const source=month();
         const tx=source.transactions.find(t=>t.id===id);
         if(!tx||tx.type!=='expense')return null;
-        const total=Number(tx.plan||0),amount=Number(moveAmount);
-        if(!Number.isFinite(amount)||amount<=0||amount>total)return null;
+        const total=Number(tx.plan||0),amount=Number(moveAmount),limit=moveableAmount(tx);
+        if(!Number.isFinite(amount)||amount<=0||amount>limit||(requiresWholeMove(tx)&&amount!==total))return null;
         if(!state.months[targetKey])state.months[targetKey]={openingBalance:0,transactions:[]};
         generateRecurring(state,targetKey);
         const target=state.months[targetKey];
@@ -2681,8 +2697,7 @@
         }
 
         const remaining=total-amount;
-        tx.plan=remaining;
-        if(tx.actual!==null&&tx.actual!==undefined&&tx.actual!=='')tx.actual=Math.min(Number(tx.actual),remaining);
+        updatePartiallyMovedSource(tx,remaining);
         const moved={...tx,id:uid('tx'),date:targetDate,plan:amount,actual:null,paid:false,note:[tx.note,'Часть платежа перенесена из предыдущего месяца'].filter(Boolean).join(' · ')};
         delete moved.recurringId; delete moved.recurringDay;
         target.transactions.push(moved);
@@ -2707,17 +2722,17 @@
         const currentOptions=ranges.map(range=>`<option value="period:${range.start}:${range.end}" ${range===suggested?'selected':''}>${range.start}–${range.end} ${monthWord}</option>`).join('');
         $('#movePeriodSelect').innerHTML=currentOptions+`<option value="next:${nextKey}">В следующий месяц — ${nextLabel}</option>`;
         $('#moveTargetDate').min=iso(ny,nm,1);$('#moveTargetDate').max=iso(ny,nm,nextLastDay);$('#moveTargetDate').value=nextDate;
-        const actual=Number(tx.actual),plan=Number(tx.plan||0),suggestedAmount=Number.isFinite(actual)&&actual>0&&actual<plan?plan-actual:plan;
-        $('#moveAmount').max=String(plan);$('#moveAmount').value=String(suggestedAmount);
-        $('#moveAmountHint').textContent=suggestedAmount<plan?`Уже внесено ${formatMoney(actual)}. Предлагаем перенести оставшиеся ${formatMoney(suggestedAmount)}.`:`Можно перенести весь расход или указать только часть суммы.`;
+        const actual=Number(tx.actual),plan=Number(tx.plan||0),suggestedAmount=moveableAmount(tx),fullyRecorded=requiresWholeMove(tx);
+        $('#moveAmount').min=String(fullyRecorded?plan:1);$('#moveAmount').max=String(suggestedAmount);$('#moveAmount').value=String(suggestedAmount);
+        $('#moveAmountHint').textContent=fullyRecorded?`Платёж уже выполнен полностью. Его можно перенести только целиком — ${formatMoney(plan)}.`:suggestedAmount<plan?`Уже внесено ${formatMoney(actual)}. Перенесите до ${formatMoney(suggestedAmount)} — оплаченная часть останется в текущем периоде.`:`Можно перенести весь платёж или указать только часть суммы.`;
         clearErrors($('#moveForm'));updateMoveTargetFields();$('#moveDialog').showModal();setTimeout(()=>$('#movePeriodSelect').focus(),0);
       }
 
       function submitMove(event){
         event.preventDefault();if(!movingTransactionId)return;
-        const form=event.currentTarget,value=$('#movePeriodSelect').value,amount=Number(form.elements.amount.value),tx=month().transactions.find(t=>t.id===movingTransactionId),total=Number(tx?.plan||0);
+        const form=event.currentTarget,value=$('#movePeriodSelect').value,amount=Number(form.elements.amount.value),tx=month().transactions.find(t=>t.id===movingTransactionId),total=Number(tx?.plan||0),limit=moveableAmount(tx);
         clearErrors(form);
-        if(!Number.isFinite(amount)||amount<=0||amount>total){setError(form,'amount',`Введите сумму от 1 до ${formatMoney(total)}.`);return;}
+        if(!Number.isFinite(amount)||amount<=0||amount>limit||(requiresWholeMove(tx)&&amount!==total)){setError(form,'amount',requiresWholeMove(tx)?`Этот платёж можно перенести только целиком: ${formatMoney(total)}.`:`Введите сумму от 1 до ${formatMoney(limit)}.`);return;}
         let result;
         if(value.startsWith('next:')){
           const targetKey=value.slice(5),targetDate=form.elements.targetDate.value;
