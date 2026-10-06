@@ -2059,7 +2059,7 @@
         // Для сентября бюджет в приложении начинается с 18 числа.
         // Операции до этой даты не должны влиять на первый экран и его прогнозы.
         const startDay=budgetStartDay();
-        const txs=sortTx(month().transactions).filter(tx=>parseDate(tx.date).getDate()>=startDay), now=effectiveToday(), opening=Number(month().openingBalance||0);
+        const txs=sortTx(month().transactions).filter(tx=>parseDate(tx.date).getDate()>=startDay), now=effectiveToday(), opening=effectiveOpeningBalanceForMonth(state.selectedMonth);
         const baseline=month().cashBaseline;
         const included=new Set(baseline?.includedTransactionIds||[]);
         let balanceNow=baseline?Number(baseline.amount||0):opening;
@@ -2084,44 +2084,31 @@
         return {txs, now, balanceNow, untilIncome, end, plannedExpenses, nextIncome, baseline};
       }
 
-      function budgetStartDay() {
-        return state.selectedMonth === '2026-09' ? 18 : 1;
+      function budgetStartDayForMonth(key) {
+        return key === '2026-09' ? 18 : 1;
       }
 
-      function periodActualKey(start) {
-        const [year,mon]=state.selectedMonth.split('-').map(Number);
+      function budgetStartDay() {
+        return budgetStartDayForMonth(state.selectedMonth);
+      }
+
+      function periodActualKeyForMonth(key,start) {
+        const [year,mon]=key.split('-').map(Number);
         return iso(year,mon,start);
       }
 
-      function periodActualBalance(start) {
-        const store=month().periodActualBalances||{};
-        const value=store[periodActualKey(start)];
+      function periodActualKey(start) {
+        return periodActualKeyForMonth(state.selectedMonth,start);
+      }
+
+      function periodActualBalanceForMonth(key,start) {
+        const store=state.months[key]?.periodActualBalances||{};
+        const value=store[periodActualKeyForMonth(key,start)];
         return value===null||value===undefined||value===''?null:Number(value);
       }
 
-      function balanceThroughDay(day, txs) {
-        const startDay=budgetStartDay();
-        if(day<startDay)return 0;
-        const ranges=getPeriodRanges();
-        if(!ranges.length){
-          return txs
-            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=startDay&&txDay<=day;})
-            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),0);
-        }
-        let balance=0;
-        for(const {start,end} of ranges){
-          if(day<start)break;
-          const cutoff=Math.min(day,end);
-          balance=txs
-            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=start&&txDay<=cutoff;})
-            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
-          if(day>=end){
-            const actual=periodActualBalance(start);
-            if(actual!==null)balance=actual;
-          }
-          if(day<=end)break;
-        }
-        return balance;
+      function periodActualBalance(start) {
+        return periodActualBalanceForMonth(state.selectedMonth,start);
       }
 
       function isSalaryIncome(tx) {
@@ -2136,16 +2123,85 @@
         return false;
       }
 
-      function getPeriodRanges() {
-        const [year,mon]=state.selectedMonth.split('-').map(Number), lastDay=new Date(year,mon,0).getDate(), startDay=budgetStartDay();
+      function getPeriodRangesForMonth(key) {
+        const [year,mon]=key.split('-').map(Number), lastDay=new Date(year,mon,0).getDate(), startDay=budgetStartDayForMonth(key);
         // С сентября сохраняем старую логику: периоды по зарплатным поступлениям.
         // С октября и дальше новый период начинается после каждого дохода семьи.
-        const useAllIncome=state.selectedMonth>='2026-10';
-        const starts=[...new Set(month().transactions
+        const useAllIncome=key>='2026-10';
+        const starts=[...new Set((state.months[key]?.transactions||[])
           .filter(t=>(useAllIncome?t.type==='income':isSalaryIncome(t))&&parseDate(t.date).getDate()>=startDay)
           .map(t=>parseDate(t.date).getDate()))]
           .sort((a,b)=>a-b);
         return starts.map((start,index)=>({start,end:index<starts.length-1?starts[index+1]-1:lastDay}));
+      }
+
+      function getPeriodRanges() {
+        return getPeriodRangesForMonth(state.selectedMonth);
+      }
+
+      function effectiveOpeningBalanceForMonth(key, visiting=new Set()) {
+        const data=state.months[key];
+        if(!data)return 0;
+        const previousKey=adjacentMonthKey(key,-1);
+        if(!state.months[previousKey]||visiting.has(previousKey))return Number(data.openingBalance||0);
+        const nextVisiting=new Set(visiting);
+        nextVisiting.add(key);
+        return closingBalanceForMonth(previousKey,nextVisiting);
+      }
+
+      function closingBalanceForMonth(key, visiting=new Set()) {
+        const data=state.months[key];
+        if(!data)return 0;
+        const startDay=budgetStartDayForMonth(key);
+        const txs=sortTx(data.transactions||[]).filter(tx=>parseDate(tx.date).getDate()>=startDay);
+        const ranges=getPeriodRangesForMonth(key);
+        let balance=effectiveOpeningBalanceForMonth(key,visiting);
+        if(!ranges.length){
+          return txs.reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
+        }
+        const firstStart=ranges[0].start;
+        balance=txs
+          .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay<firstStart;})
+          .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
+        for(const {start,end} of ranges){
+          balance=txs
+            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=start&&txDay<=end;})
+            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
+          const actual=periodActualBalanceForMonth(key,start);
+          if(actual!==null)balance=actual;
+        }
+        return balance;
+      }
+
+      function balanceThroughDay(day, txs) {
+        const startDay=budgetStartDay();
+        const opening=effectiveOpeningBalanceForMonth(state.selectedMonth);
+        if(day<startDay)return opening;
+        const ranges=getPeriodRanges();
+        if(!ranges.length){
+          return txs
+            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=startDay&&txDay<=day;})
+            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),opening);
+        }
+        let balance=opening;
+        const firstStart=ranges[0].start;
+        balance=txs
+          .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=startDay&&txDay<firstStart&&txDay<=day;})
+          .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
+        if(day<firstStart)return balance;
+        for(const {start,end} of ranges){
+          if(day<start)break;
+          const cutoff=Math.min(day,end);
+          balance=txs
+            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=start&&txDay<=cutoff;})
+            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
+          if(day>=end){
+            const actual=periodActualBalance(start);
+            if(actual!==null)balance=actual;
+          }
+          if(day<=end)break;
+        }
+        return balance;
       }
 
       function renderOverview() {
@@ -2250,7 +2306,11 @@
         const all=sortTx(month().transactions), [y,m]=state.selectedMonth.split('-').map(Number), ranges=getPeriodRanges(), now=effectiveToday();
         if(!ranges.length){container.innerHTML=`<div class="ledger">${ledgerMarkup(visibleList,true,true)}</div>`;return;}
         const blocks=[];
-        let carry=0;
+        const startDay=budgetStartDay(), firstStart=ranges[0].start;
+        let carry=effectiveOpeningBalanceForMonth(state.selectedMonth);
+        carry=all
+          .filter(t=>{const day=parseDate(t.date).getDate();return day>=startDay&&day<firstStart;})
+          .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),carry);
         ranges.forEach(({start,end},index)=>{
           const allInPeriod=all.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
           const visibleInPeriod=visibleList.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
