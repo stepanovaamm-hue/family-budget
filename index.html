@@ -1146,7 +1146,6 @@
         'Пусть у денег будет своё место, а у вас — чуть больше спокойствия.',
         'Не обязательно решать всё сразу. Достаточно видеть следующий шаг.'
       ];
-      const today = new Date(2026, 8, 19); // фиксированная дата исходной рабочей версии; после 2026-09 используется системная дата
       const realToday = new Date();
       const navItems = [
         ['overview', 'i-home', 'План месяца'],
@@ -1163,7 +1162,7 @@
       const iso = (y, m, d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const parseDate = value => { const [y,m,d] = value.split('-').map(Number); return new Date(y,m-1,d); };
       const monthKeyFrom = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
-      const selectedToday = key => key === '2026-09' ? today : realToday;
+      const selectedToday = () => realToday;
 
       function seedState() {
         const key=monthKeyFrom(realToday);
@@ -1556,7 +1555,8 @@
       const month = () => state.months[state.selectedMonth];
       const amountOf = tx => tx.actual !== null && tx.actual !== '' && tx.actual !== undefined ? Number(tx.actual) : Number(tx.plan || 0);
       const amountForecast = tx => tx.type === 'income' ? amountOf(tx) : (tx.paid ? amountOf(tx) : Number(tx.plan || 0));
-      const sortTx = list => [...list].sort((a,b) => a.date.localeCompare(b.date) || (a.type === 'income' ? -1 : 1) || a.name.localeCompare(b.name));
+      const cashFlowDate = tx => tx.type==='expense'&&tx.paid&&tx.paidDate ? tx.paidDate : tx.date;
+      const sortTx = list => [...list].sort((a,b) => cashFlowDate(a).localeCompare(cashFlowDate(b)) || (a.type === 'income' ? -1 : 1) || a.name.localeCompare(b.name));
 
       function persistLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
       function sharedState() { return { version:1, months:state.months, recurring:state.recurring||[], recurringIncome:state.recurringIncome||[], savingsForecastDate:state.savingsForecastDate||'', migrations:state.migrations||{} }; }
@@ -1833,7 +1833,7 @@
 
         const allEntries=savingsEntries();
         allEntries.forEach(({tx})=>{
-          const txDate=parseDate(tx.date);
+          const txDate=parseDate(cashFlowDate(tx));
           if(tx.paid && txDate<=target) currentTotal+=amountOf(tx);
           if(!tx.paid && tx.date>=todayKey && txDate<=target) futurePlanned+=Number(tx.plan||0);
         });
@@ -2055,71 +2055,95 @@
         if (state.activeView === 'recurring') renderRecurring();
       }
 
+      function openingBalanceForMonth(key=state.selectedMonth,trail=new Set()){
+        const data=state.months[key];if(!data)return 0;
+        const saved=Number(data.openingBalance||0);
+        if(data.openingBalanceManual===true||saved!==0)return saved;
+        const previousKey=adjacentMonthKey(key,-1),earlierKeys=Object.keys(state.months).filter(candidate=>candidate<key).sort();
+        const sourceKey=state.months[previousKey]?previousKey:earlierKeys[earlierKeys.length-1];
+        if(!sourceKey||trail.has(sourceKey))return saved;
+        return monthClosingBalance(sourceKey,trail);
+      }
+
+      function monthClosingBalance(key,trail=new Set()){
+        const data=state.months[key];if(!data||trail.has(key))return 0;
+        const path=new Set(trail);path.add(key);
+        const [year,mon]=key.split('-').map(Number),lastDay=new Date(year,mon,0).getDate(),startDay=budgetStartDay(key);
+        const all=(data.transactions||[]).filter(tx=>cashFlowDate(tx).slice(0,7)===key&&parseDate(cashFlowDate(tx)).getDate()>=startDay);
+        const baseline=data.cashBaseline?.date?.slice(0,7)===key?data.cashBaseline:null;
+        const included=new Set(baseline?.includedTransactionIds||[]);
+        let balance=baseline?Number(baseline.amount||0):openingBalanceForMonth(key,path);
+        const baselineDay=baseline?parseDate(baseline.date).getDate():null;
+        if(baseline){
+          balance-=all.filter(tx=>tx.type==='expense'&&!tx.paid&&!included.has(tx.id)&&parseDate(cashFlowDate(tx))<parseDate(baseline.date)).reduce((sum,tx)=>sum+Number(tx.plan||0),0);
+        }
+        const ranges=getPeriodRanges(key);
+        for(let day=baselineDay?Math.max(startDay,baselineDay):startDay;day<=lastDay;day++){
+          all.filter(tx=>parseDate(cashFlowDate(tx)).getDate()===day&&!included.has(tx.id)).forEach(tx=>{
+            if(tx.type==='income')balance+=amountForecast(tx);else balance-=amountForecast(tx);
+          });
+          const range=ranges.find(item=>item.end===day);
+          if(range){const actual=periodActualBalance(range.start,key);if(actual!==null)balance=actual;}
+        }
+        return balance;
+      }
+
       function calculate() {
         // Для сентября бюджет в приложении начинается с 18 числа.
         // Операции до этой даты не должны влиять на первый экран и его прогнозы.
         const startDay=budgetStartDay();
-        const txs=sortTx(month().transactions).filter(tx=>parseDate(tx.date).getDate()>=startDay), now=effectiveToday(), opening=Number(month().openingBalance||0);
+        const txs=sortTx(month().transactions).filter(tx=>cashFlowDate(tx).slice(0,7)===state.selectedMonth&&parseDate(cashFlowDate(tx)).getDate()>=startDay), now=effectiveToday(), opening=openingBalanceForMonth(state.selectedMonth);
         const baseline=month().cashBaseline;
         const included=new Set(baseline?.includedTransactionIds||[]);
         let balanceNow=baseline?Number(baseline.amount||0):opening;
         txs.forEach(tx => {
           if(baseline&&included.has(tx.id))return;
-          const d=parseDate(tx.date);
+          const d=parseDate(cashFlowDate(tx));
+          if(baseline&&cashFlowDate(tx)<baseline.date)return;
           if (tx.type==='income' && (tx.paid || d <= now)) balanceNow += amountOf(tx);
-          if (tx.type==='expense' && tx.paid) balanceNow -= amountOf(tx);
+          if (tx.type==='expense' && tx.paid && d <= now) balanceNow -= amountOf(tx);
         });
-        const nextIncome=txs.find(tx => tx.type==='income' && parseDate(tx.date)>now);
+        const nextIncome=txs.find(tx => tx.type==='income' && parseDate(cashFlowDate(tx))>now);
         let untilIncome=balanceNow;
-        txs.filter(tx => tx.type==='expense' && !tx.paid && (!baseline||!included.has(tx.id)) && (!nextIncome || parseDate(tx.date)<parseDate(nextIncome.date))).forEach(tx=>untilIncome-=Number(tx.plan||0));
-        let end=baseline?balanceNow:opening, plannedExpenses=0;
+        txs.filter(tx => tx.type==='expense' && !tx.paid && (!baseline||!included.has(tx.id)) && (!nextIncome || parseDate(cashFlowDate(tx))<parseDate(cashFlowDate(nextIncome)))).forEach(tx=>untilIncome-=Number(tx.plan||0));
+        let plannedExpenses=0;
         txs.forEach(tx => {
-          const val=amountForecast(tx), d=parseDate(tx.date);
+          const val=amountForecast(tx);
           if(tx.type==='expense')plannedExpenses+=val;
-          if(!baseline){if(tx.type==='income')end+=val;else end-=val;return;}
-          if(included.has(tx.id))return;
-          if(tx.type==='income'&&!tx.paid&&d>now)end+=val;
-          if(tx.type==='expense'&&!tx.paid)end-=val;
         });
-        return {txs, now, balanceNow, untilIncome, end, plannedExpenses, nextIncome, baseline};
+        const end=monthClosingBalance(state.selectedMonth);
+        return {txs, now, balanceNow, untilIncome, end, plannedExpenses, nextIncome, baseline, opening};
       }
 
-      function budgetStartDay() {
-        return state.selectedMonth === '2026-09' ? 18 : 1;
+      function budgetStartDay(key=state.selectedMonth) {
+        return key === '2026-09' ? 18 : 1;
       }
 
-      function periodActualKey(start) {
-        const [year,mon]=state.selectedMonth.split('-').map(Number);
+      function periodActualKey(start,key=state.selectedMonth) {
+        const [year,mon]=key.split('-').map(Number);
         return iso(year,mon,start);
       }
 
-      function periodActualBalance(start) {
-        const store=month().periodActualBalances||{};
-        const value=store[periodActualKey(start)];
+      function periodActualBalance(start,key=state.selectedMonth) {
+        const store=state.months[key]?.periodActualBalances||{};
+        const value=store[periodActualKey(start,key)];
         return value===null||value===undefined||value===''?null:Number(value);
       }
 
-      function balanceThroughDay(day, txs) {
+      function balanceThroughDay(day, txs, ignoreActualStart=null) {
         const startDay=budgetStartDay();
         if(day<startDay)return 0;
         const ranges=getPeriodRanges();
-        if(!ranges.length){
-          return txs
-            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=startDay&&txDay<=day;})
-            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),0);
-        }
-        let balance=0;
-        for(const {start,end} of ranges){
-          if(day<start)break;
-          const cutoff=Math.min(day,end);
-          balance=txs
-            .filter(t=>{const txDay=parseDate(t.date).getDate();return txDay>=start&&txDay<=cutoff;})
-            .reduce((value,t)=>value+(t.type==='income'?amountForecast(t):-amountForecast(t)),balance);
-          if(day>=end){
-            const actual=periodActualBalance(start);
-            if(actual!==null)balance=actual;
-          }
-          if(day<=end)break;
+        const baseline=month().cashBaseline,baselineDay=baseline?.date?.slice(0,7)===state.selectedMonth?parseDate(baseline.date).getDate():null;
+        const included=new Set(baseline?.includedTransactionIds||[]);
+        let balance=baseline&&baselineDay<=startDay?Number(baseline.amount||0):openingBalanceForMonth();
+        for(let currentDay=startDay;currentDay<=day;currentDay++){
+          if(baseline&&currentDay===baselineDay)balance=Number(baseline.amount||0);
+          txs.filter(tx=>parseDate(cashFlowDate(tx)).getDate()===currentDay&&!(baseline&&currentDay>=baselineDay&&included.has(tx.id))).forEach(tx=>{
+            balance+=tx.type==='income'?amountForecast(tx):-amountForecast(tx);
+          });
+          const range=ranges.find(item=>item.end===currentDay);
+          if(range&&range.start!==ignoreActualStart){const actual=periodActualBalance(range.start);if(actual!==null)balance=actual;}
         }
         return balance;
       }
@@ -2136,22 +2160,24 @@
         return false;
       }
 
-      function getPeriodRanges() {
-        const [year,mon]=state.selectedMonth.split('-').map(Number), lastDay=new Date(year,mon,0).getDate(), startDay=budgetStartDay();
+      function getPeriodRanges(key=state.selectedMonth) {
+        const [year,mon]=key.split('-').map(Number), lastDay=new Date(year,mon,0).getDate(), startDay=budgetStartDay(key), data=state.months[key]||{transactions:[]};
         // С сентября сохраняем старую логику: периоды по зарплатным поступлениям.
         // С октября и дальше новый период начинается после каждого дохода семьи.
-        const useAllIncome=state.selectedMonth>='2026-10';
-        const starts=[...new Set(month().transactions
+        const useAllIncome=key>='2026-10';
+        const starts=[...new Set((data.transactions||[])
           .filter(t=>(useAllIncome?t.type==='income':isSalaryIncome(t))&&parseDate(t.date).getDate()>=startDay)
           .map(t=>parseDate(t.date).getDate()))]
           .sort((a,b)=>a-b);
+        if(!starts.length)return [{start:startDay,end:lastDay}];
+        if(starts[0]>startDay)starts.unshift(startDay);
         return starts.map((start,index)=>({start,end:index<starts.length-1?starts[index+1]-1:lastDay}));
       }
 
       function renderOverview() {
         const c=calculate();
         $('#balanceNow').textContent=formatMoney(c.balanceNow);
-        $('#balanceNowNote').textContent = c.baseline ? `Точка отсчёта задана на ${fullDate.format(parseDate(c.baseline.date))}. Новые проведённые расходы уже учтены.` : c.balanceNow >= 0 ? 'Учтены полученные доходы и операции с отметкой «проведено».' : 'Расходы по проведённым операциям превышают полученные доходы.';
+        $('#balanceNowNote').textContent = c.baseline ? `Точка отсчёта задана на ${fullDate.format(parseDate(c.baseline.date))}. Новые проведённые расходы уже учтены.` : `${c.opening?`Перенесено с прошлого месяца ${formatMoney(c.opening)}. `:''}${c.balanceNow >= 0 ? 'Учтены полученные доходы и расходы на дату оплаты.' : 'Расходы по проведённым операциям превышают поступившие деньги.'}`;
         $('#setBaseline').textContent=c.baseline?'Изменить сумму на текущий день':'Задать деньги на текущий день';
         $('#untilIncome').textContent=formatMoney(c.untilIncome);
         $('#endForecast').textContent=formatMoney(c.end);
@@ -2170,7 +2196,7 @@
         if (!ranges.length) { $('#periods').innerHTML='<div class="empty"><strong>Пока нет зарплатных поступлений</strong>Добавьте зарплату, чтобы увидеть периоды между выплатами.</div>'; return; }
         const cards=[];
         ranges.forEach(({start,end})=>{
-          const inPeriod=c.txs.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
+          const inPeriod=c.txs.filter(t=>{const day=parseDate(cashFlowDate(t)).getDate();return day>=start&&day<=end;});
           const income=inPeriod.filter(t=>t.type==='income').reduce((s,t)=>s+amountForecast(t),0);
           const expense=inPeriod.filter(t=>t.type==='expense').reduce((s,t)=>s+amountForecast(t),0);
           const running=balanceThroughDay(end,c.txs);
@@ -2184,14 +2210,15 @@
       function ledgerMarkup(list, editable=true, quickPay=false) {
         if (!list.length) return '<div class="empty"><strong>Здесь пока пусто</strong>Добавьте первую операцию.</div>';
         const rows=list.map(tx=>{
-          const [statusClass,statusLabel]=statusOf(tx), d=parseDate(tx.date), amount=amountOf(tx);
+          const [statusClass,statusLabel]=statusOf(tx), shownDate=cashFlowDate(tx), d=parseDate(shownDate), amount=amountOf(tx);
           const planHint=tx.actual!==null&&tx.actual!==undefined&&Number(tx.actual)!==Number(tx.plan)?`План ${formatMoney(tx.plan)}`:'';
-          const secondary=[tx.note,planHint].filter(Boolean).join(' · ');
+          const dueHint=tx.type==='expense'&&tx.paidDate&&tx.paidDate!==tx.date?`Срок ${fullDate.format(parseDate(tx.date))}`:'';
+          const secondary=[tx.note,planHint,dueHint].filter(Boolean).join(' · ');
           const privatePayAction=editable&&tx.type==='expense'&&!tx.paid&&cloud.user?`<button class="button small secondary private-pay-button pay-private" type="button" title="Списать из личных денег">Личными</button>`:'';
           const payAction=quickPay&&tx.type==='expense'?`<button class="button small ${tx.paid?'secondary unmark':'primary'} pay-button toggle-paid" aria-pressed="${tx.paid}" aria-label="${tx.paid?'Снять отметку о проведении':'Провести расход'} ${escapeHtml(tx.name)}">${tx.paid?`${icon('i-close')}Снять отметку`:'Провести'}</button>`:'';
           const movable=editable&&tx.type==='expense';
           const moveAction=movable?`<button class="icon-button move-tx" aria-label="Перенести ${escapeHtml(tx.name)} в другой период" title="Перенести в другой период">${icon('i-move')}</button>`:'';
-          return `<div class="ledger-row ${statusClass==='overdue'?'overdue':''} ${movable?'draggable-expense':''}" data-id="${tx.id}" ${movable?'draggable="true" title="Перетащите расход в другой период"':''}><time datetime="${tx.date}">${fullDate.format(d)}</time><div class="ledger-title"><strong>${escapeHtml(tx.name)}</strong><small>${escapeHtml(secondary)}</small></div><span>${escapeHtml(tx.category||'Без категории')}</span><span class="money ${tx.type}">${tx.type==='income'?'+':'−'}${formatMoney(amount)}</span><span class="status ${statusClass}">${statusLabel}</span><div class="row-actions">${privatePayAction}${payAction}${moveAction}${editable?`<button class="icon-button edit-tx" aria-label="Редактировать ${escapeHtml(tx.name)}">${icon('i-edit')}</button>`:''}</div></div>`;
+          return `<div class="ledger-row ${statusClass==='overdue'?'overdue':''} ${movable?'draggable-expense':''}" data-id="${tx.id}" ${movable?'draggable="true" title="Перетащите расход в другой период"':''}><time datetime="${shownDate}">${fullDate.format(d)}</time><div class="ledger-title"><strong>${escapeHtml(tx.name)}</strong><small>${escapeHtml(secondary)}</small></div><span>${escapeHtml(tx.category||'Без категории')}</span><span class="money ${tx.type}">${tx.type==='income'?'+':'−'}${formatMoney(amount)}</span><span class="status ${statusClass}">${statusLabel}</span><div class="row-actions">${privatePayAction}${payAction}${moveAction}${editable?`<button class="icon-button edit-tx" aria-label="Редактировать ${escapeHtml(tx.name)}">${icon('i-edit')}</button>`:''}</div></div>`;
         }).join('');
         return `<div class="ledger-row header"><span>Дата</span><span>Операция</span><span>Категория</span><span>Сумма</span><span>Статус</span><span></span></div>${rows}`;
       }
@@ -2234,7 +2261,7 @@
         const cells=weekdays.map(day=>`<div class="calendar-weekday">${day}</div>`);
         for(let i=0;i<firstOffset;i++)cells.push('<div class="calendar-empty" aria-hidden="true"></div>');
         for(let day=1;day<=lastDay;day++){
-          const daily=txs.filter(tx=>parseDate(tx.date).getDate()===day),income=daily.filter(tx=>tx.type==='income').reduce((sum,tx)=>sum+amountForecast(tx),0),expense=daily.filter(tx=>tx.type==='expense').reduce((sum,tx)=>sum+amountForecast(tx),0),balance=balanceThroughDay(day,txs),isToday=todayDate.getFullYear()===year&&todayDate.getMonth()+1===mon&&todayDate.getDate()===day;
+          const daily=txs.filter(tx=>parseDate(cashFlowDate(tx)).getDate()===day),income=daily.filter(tx=>tx.type==='income').reduce((sum,tx)=>sum+amountForecast(tx),0),expense=daily.filter(tx=>tx.type==='expense').reduce((sum,tx)=>sum+amountForecast(tx),0),balance=balanceThroughDay(day,txs),isToday=todayDate.getFullYear()===year&&todayDate.getMonth()+1===mon&&todayDate.getDate()===day;
           // «Свободно сегодня» — это фактически доступные деньги на текущий день.
           // Если пользователь задал ручную точку отсчёта, берём рассчитанный от неё текущий остаток.
           // Если нет — используем обычный расчётный остаток на сейчас. Будущие обязательства сюда не вычитаются.
@@ -2250,24 +2277,23 @@
         const all=sortTx(month().transactions), [y,m]=state.selectedMonth.split('-').map(Number), ranges=getPeriodRanges(), now=effectiveToday();
         if(!ranges.length){container.innerHTML=`<div class="ledger">${ledgerMarkup(visibleList,true,true)}</div>`;return;}
         const blocks=[];
-        let carry=0;
         ranges.forEach(({start,end},index)=>{
-          const allInPeriod=all.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
-          const visibleInPeriod=visibleList.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
+          const allInPeriod=all.filter(t=>{const day=parseDate(cashFlowDate(t)).getDate();return day>=start&&day<=end;});
+          const visibleInPeriod=visibleList.filter(t=>{const day=parseDate(cashFlowDate(t)).getDate();return day>=start&&day<=end;});
           const income=allInPeriod.filter(t=>t.type==='income').reduce((sum,t)=>sum+amountForecast(t),0);
           const expenses=allInPeriod.filter(t=>t.type==='expense').reduce((sum,t)=>sum+amountForecast(t),0);
-          const calculated=carry+income-expenses;
+          const calculated=balanceThroughDay(end,c.txs,start);
           const actual=periodActualBalance(start);
           const running=actual!==null?actual:calculated;
-          carry=running;
           if(!visibleInPeriod.length&&state.filter!=='all')return;
           const monthWord=fullDate.format(new Date(y,m-1,1)).replace(/^1\s*/, '').replace(/\.$/, '');
           const nextDate=index<ranges.length-1?`${ranges[index+1].start} ${monthWord}`:'конца месяца';
+          const periodIntro=index===0&&!allInPeriod.some(t=>t.type==='income'&&parseDate(t.date).getDate()===start)?(ranges.length>1?`Переходящий остаток · до поступления ${ranges[1].start} ${monthWord}`:'Период с переходящим остатком'): `После поступления ${start} ${monthWord} · до ${nextDate}`;
           const deleteButton=state.filter==='all'?`<button class="button danger-text small delete-period" data-period-start="${start}" data-period-end="${end}">${icon('i-trash')}Удалить период</button>`:'';
           const isCurrent=now.getFullYear()===y&&now.getMonth()+1===m&&now.getDate()>=start&&now.getDate()<=end;
           const key=`${state.selectedMonth}:${start}-${end}`;
           const shouldOpen=openTransactionPeriods.has(key)||(!openTransactionPeriods.size&&isCurrent);
-          blocks.push(`<details class="period-group" data-period-key="${key}" data-period-start="${start}" data-period-end="${end}" ${shouldOpen?'open':''}><summary class="period-group-summary"><div class="period-summary-main"><h2>${start}–${end} ${monthWord}</h2><p>После поступления ${start} ${monthWord} · до ${nextDate}</p></div><div class="period-summary-metric"><span>Поступило</span><strong>${formatMoney(income)}</strong></div><div class="period-summary-metric"><span>Расходы</span><strong>${formatMoney(expenses)}</strong></div><div class="period-summary-metric ending"><span>Остаток</span><strong class="${running<0?'negative':''}">${formatMoney(running)}</strong></div>${icon('i-right').replace('class="icon"','class="icon period-summary-chevron"')}</summary><div class="period-group-body"><div class="period-group-heading"><div><h2>${start}–${end} ${monthWord}</h2><p>После поступления ${start} ${monthWord} · до ${nextDate}</p></div><div class="period-heading-actions"><div class="income-label">Поступило ${formatMoney(income)}</div><div class="period-heading-buttons"><button class="button secondary small add-period-expense" data-period-start="${start}" data-period-end="${end}">${icon('i-plus')}Добавить расход</button>${deleteButton}</div></div></div><div class="ledger">${ledgerMarkup(visibleInPeriod,true,true)}</div><div class="period-subtotal"><span>Доходы периода<strong>${formatMoney(income)}</strong></span><span>Расходы периода<strong>${formatMoney(expenses)}</strong></span><span class="period-ending">Остаток к следующему поступлению<strong class="${running<0?'negative':''}">${formatMoney(running)}</strong><div class="period-ending-actions">${actual!==null?`<small>Расчётно ${formatMoney(calculated)} · <span class="period-actual-value">факт внесён</span></small>`:''}<button class="period-actual-button set-period-actual" type="button" data-period-start="${start}" data-period-calculated="${calculated}">${actual!==null?'Изменить факт':'Внести фактический остаток'}</button></div></span></div></div></details>`);
+          blocks.push(`<details class="period-group" data-period-key="${key}" data-period-start="${start}" data-period-end="${end}" ${shouldOpen?'open':''}><summary class="period-group-summary"><div class="period-summary-main"><h2>${start}–${end} ${monthWord}</h2><p>${periodIntro}</p></div><div class="period-summary-metric"><span>Поступило</span><strong>${formatMoney(income)}</strong></div><div class="period-summary-metric"><span>Расходы</span><strong>${formatMoney(expenses)}</strong></div><div class="period-summary-metric ending"><span>Остаток</span><strong class="${running<0?'negative':''}">${formatMoney(running)}</strong></div>${icon('i-right').replace('class="icon"','class="icon period-summary-chevron"')}</summary><div class="period-group-body"><div class="period-group-heading"><div><h2>${start}–${end} ${monthWord}</h2><p>${periodIntro}</p></div><div class="period-heading-actions"><div class="income-label">Поступило ${formatMoney(income)}</div><div class="period-heading-buttons"><button class="button secondary small add-period-expense" data-period-start="${start}" data-period-end="${end}">${icon('i-plus')}Добавить расход</button>${deleteButton}</div></div></div><div class="ledger">${ledgerMarkup(visibleInPeriod,true,true)}</div><div class="period-subtotal"><span>Доходы периода<strong>${formatMoney(income)}</strong></span><span>Расходы периода<strong>${formatMoney(expenses)}</strong></span><span class="period-ending">Остаток к следующему поступлению<strong class="${running<0?'negative':''}">${formatMoney(running)}</strong><div class="period-ending-actions">${actual!==null?`<small>Расчётно ${formatMoney(calculated)} · <span class="period-actual-value">факт внесён</span></small>`:''}<button class="period-actual-button set-period-actual" type="button" data-period-start="${start}" data-period-calculated="${calculated}">${actual!==null?'Изменить факт':'Внести фактический остаток'}</button></div></span></div></div></details>`);
         });
         container.innerHTML=blocks.length?blocks.join(''):'<div class="panel empty"><strong>Нет операций по выбранному фильтру</strong>Выберите другой фильтр или добавьте операцию.</div>';
       }
@@ -2622,12 +2648,12 @@
           save();closeDialog($('#transactionDialog'));render();showToast('Операция удалена');
         }
       }
-      function togglePaid(id){const tx=month().transactions.find(t=>t.id===id);if(!tx||tx.type!=='expense')return;tx.paid=!tx.paid;if(tx.paid&&(tx.actual===null||tx.actual===undefined||tx.actual===''))tx.actual=Number(tx.plan||0);save();render();showToast(tx.paid?`Расход «${tx.name}» проведён`:`Расход «${tx.name}» возвращён в план`);}
+      function togglePaid(id){const tx=month().transactions.find(t=>t.id===id);if(!tx||tx.type!=='expense')return;tx.paid=!tx.paid;if(tx.paid){if(tx.actual===null||tx.actual===undefined||tx.actual==='')tx.actual=Number(tx.plan||0);const todayKey=localDateKey(realToday);tx.paidDate=todayKey.slice(0,7)===state.selectedMonth?todayKey:tx.date;}else delete tx.paidDate;save();render();showToast(tx.paid?`Расход «${tx.name}» проведён ${fullDate.format(parseDate(tx.paidDate))}`:`Расход «${tx.name}» возвращён в план`);}
       function deleteRecurring(){if(!editingRecurring)return;if(confirm('Удалить постоянный расход и его неоплаченные будущие операции?')){state.recurring=state.recurring.filter(r=>r.id!==editingRecurring);Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==editingRecurring||t.paid);});save();closeDialog($('#recurringDialog'));render();showToast('Постоянный расход удалён');}}
 
       function deletePeriod(start,end){
         const monthData=month();
-        const affected=monthData.transactions.filter(t=>{const day=parseDate(t.date).getDate();return day>=start&&day<=end;});
+        const affected=monthData.transactions.filter(t=>{const day=parseDate(cashFlowDate(t)).getDate();return day>=start&&day<=end;});
         if(!affected.length)return;
         const incomes=affected.filter(t=>t.type==='income').length,expenses=affected.filter(t=>t.type==='expense').length;
         if(!confirm(`Удалить период ${start}–${end} и все его операции?\n\nБудут удалены: ${incomes} ${plural(incomes,'доход','дохода','доходов')} и ${expenses} ${plural(expenses,'расход','расхода','расходов')}.`))return;
@@ -2641,17 +2667,17 @@
       function applyMove(id,start,end){
         const tx=month().transactions.find(t=>t.id===id);
         if(!tx||tx.type!=='expense')return null;
-        const oldDay=parseDate(tx.date).getDate();
+        const oldDay=parseDate(cashFlowDate(tx)).getDate();
         // Для старых сохранённых постоянных расходов recurringDay мог отсутствовать.
         // Фиксируем исходный день ДО смены даты, иначе generateRecurring() считает,
         // что исходный платёж исчез, и создаёт его повторно.
         if(tx.recurringId&&(tx.recurringDay===undefined||tx.recurringDay===null||tx.recurringDay==='')){
           const rule=state.recurring.find(r=>r.id===tx.recurringId);
           const ruleDays=rule?recurringDays(rule):[];
-          tx.recurringDay=ruleDays.length===1?ruleDays[0]:oldDay;
+          tx.recurringDay=ruleDays.length===1?ruleDays[0]:parseDate(tx.date).getDate();
         }
         const newDay=Math.min(Math.max(oldDay,start),end),[year,mon]=state.selectedMonth.split('-').map(Number);
-        tx.date=iso(year,mon,newDay);
+        if(tx.paid)tx.paidDate=iso(year,mon,newDay);else tx.date=iso(year,mon,newDay);
         return {tx,newDay};
       }
 
@@ -2740,7 +2766,7 @@
         const tx=month().transactions.find(t=>t.id===id);if(!tx||tx.type!=='expense')return;
         const ranges=getPeriodRanges();
         movingTransactionId=id;
-        const currentDay=parseDate(tx.date).getDate(),monthWord=fullDate.format(monthDate()).replace(/^1\s*/, '').replace(/\.$/, ''),currentIndex=ranges.findIndex(range=>currentDay>=range.start&&currentDay<=range.end),suggested=ranges[Math.min(Math.max(currentIndex+1,0),Math.max(ranges.length-1,0))];
+        const currentDay=parseDate(cashFlowDate(tx)).getDate(),monthWord=fullDate.format(monthDate()).replace(/^1\s*/, '').replace(/\.$/, ''),currentIndex=ranges.findIndex(range=>currentDay>=range.start&&currentDay<=range.end),suggested=ranges[Math.min(Math.max(currentIndex+1,0),Math.max(ranges.length-1,0))];
         const nextKey=adjacentMonthKey(state.selectedMonth,1),[ny,nm]=nextKey.split('-').map(Number),nextLastDay=new Date(ny,nm,0).getDate(),nextDate=iso(ny,nm,Math.min(currentDay,nextLastDay));
         const nextLabel=monthFormat.format(new Date(ny,nm-1,1));
         $('#moveTitle').textContent=`Перенести «${tx.name}»`;
@@ -2778,7 +2804,7 @@
 
       function openBaseline(){const dialog=$('#baselineDialog'),form=$('#baselineForm'),existing=month().cashBaseline,[year,mon]=state.selectedMonth.split('-').map(Number),lastDay=new Date(year,mon,0).getDate();form.reset();clearErrors(form);form.elements.date.min=iso(year,mon,1);form.elements.date.max=iso(year,mon,lastDay);form.elements.date.value=existing?.date||defaultDate();form.elements.amount.value=existing?.amount??calculate().balanceNow;$('#clearBaseline').hidden=!existing;dialog.showModal();setTimeout(()=>form.elements.amount.focus(),0);}
 
-      function submitBaseline(event){event.preventDefault();const form=event.currentTarget,date=form.elements.date.value,amount=Number(form.elements.amount.value);clearErrors(form);if(!date||date.slice(0,7)!==state.selectedMonth){setError(form,'date','Выберите дату в текущем месяце.');return;}if(!Number.isFinite(amount)){setError(form,'amount','Введите текущую сумму денег.');return;}const cutoff=parseDate(date);const includedTransactionIds=month().transactions.filter(tx=>(tx.type==='income'&&(tx.paid||parseDate(tx.date)<=cutoff))||(tx.type==='expense'&&tx.paid)).map(tx=>tx.id);month().cashBaseline={date,amount,includedTransactionIds};save();closeDialog($('#baselineDialog'));render();showToast('Начальная сумма сохранена');}
+      function submitBaseline(event){event.preventDefault();const form=event.currentTarget,date=form.elements.date.value,amount=Number(form.elements.amount.value);clearErrors(form);if(!date||date.slice(0,7)!==state.selectedMonth){setError(form,'date','Выберите дату в текущем месяце.');return;}if(!Number.isFinite(amount)){setError(form,'amount','Введите текущую сумму денег.');return;}const cutoff=parseDate(date);const includedTransactionIds=month().transactions.filter(tx=>(tx.type==='income'&&(tx.paid||parseDate(tx.date)<=cutoff))||(tx.type==='expense'&&tx.paid&&parseDate(cashFlowDate(tx))<=cutoff)).map(tx=>tx.id);month().cashBaseline={date,amount,includedTransactionIds};save();closeDialog($('#baselineDialog'));render();showToast('Начальная сумма сохранена');}
 
       function clearBaseline(){if(!month().cashBaseline)return;if(!confirm('Сбросить начальную сумму и снова считать остаток от операций месяца?'))return;delete month().cashBaseline;save();closeDialog($('#baselineDialog'));render();showToast('Начальная сумма сброшена');}
 
