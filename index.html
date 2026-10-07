@@ -2300,7 +2300,7 @@
       }
 
       function renderTransactionPeriods(container, visibleList) {
-        const all=sortTx(month().transactions), [y,m]=state.selectedMonth.split('-').map(Number), ranges=getPeriodRanges(), now=effectiveToday();
+        const c=calculate(), all=c.txs, [y,m]=state.selectedMonth.split('-').map(Number), ranges=getPeriodRanges(), now=c.now;
         if(!ranges.length){container.innerHTML=`<div class="ledger">${ledgerMarkup(visibleList,true,true)}</div>`;return;}
         const blocks=[];
         ranges.forEach(({start,end},index)=>{
