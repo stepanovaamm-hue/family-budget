@@ -122,3 +122,22 @@ assert(october.transactions.some(tx=>tx.id===custom.id),'Preserve user-created o
 run("generateRecurring(state,'2026-11')");
 assert.equal(context.state.months['2026-11'].transactions.filter(tx=>tx.recurringId==='psb-rule').length,1,'Next month still receives normal recurring payment');
 console.log('Recurring move regression checks passed');
+context.state.selectedMonth='2026-12';
+context.state.months['2026-12']={openingBalance:-62000,openingBalanceManual:true,transactions:[
+  {id:'dec-income',type:'income',date:'2026-12-10',plan:65000,paid:false},
+  {id:'dec-expense',type:'expense',date:'2026-12-11',plan:53300,paid:false}
+]};
+context.month=()=>context.state.months[context.state.selectedMonth];
+context.openTransactionPeriods=new Set();
+context.escapeHtml=value=>String(value);
+context.icon=()=>'';
+context.ledgerMarkup=()=>'';
+context.container={innerHTML:''};
+for(const name of ['balanceThroughDay','renderTransactionPeriods'])vm.runInContext(extract(name),context);
+run('renderTransactionPeriods(container,month().transactions)');
+assert(context.container.innerHTML.includes('На начало периода -62000 ₽ + доходы 65000 ₽ − расходы 53300 ₽ = прогноз -50300 ₽'),'Show carried balance behind the screenshot total');
+context.month().cashBaseline={date:'2026-12-07',amount:3000,includedTransactionIds:[]};
+run('renderTransactionPeriods(container,month().transactions)');
+assert(context.container.innerHTML.includes('На начало периода 3000 ₽ + доходы 65000 ₽ − расходы 53300 ₽ = прогноз 14700 ₽'),'A cash baseline replaces old carried balance before next period');
+assert(context.container.innerHTML.includes('сверка денег'),'Explain baseline correction when it falls inside a period');
+console.log('Period balance explanation checks passed');
