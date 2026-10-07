@@ -1268,6 +1268,7 @@
 
       function generateRecurring(target, key) {
         if (!target.months[key]) target.months[key] = { openingBalance:0, transactions:[] };
+        repairRecurringMoves(target);
         const month = target.months[key];
         const suppressed=new Set(month.suppressedRecurringInstances||[]);
         const [year, mon] = key.split('-').map(Number);
@@ -1371,10 +1372,15 @@
           });
           groups.forEach(items=>{
             if(items.length<2)return;
-            const moved=items.find(tx=>parseDate(tx.date).getDate()!==Number(tx.recurringDay));
-            const generated=items.find(tx=>tx!==moved&&!tx.paid&&parseDate(tx.date).getDate()===Number(tx.recurringDay));
-            if(moved&&generated){
-              monthData.transactions=monthData.transactions.filter(tx=>tx.id!==generated.id);              changed=true;
+            const movedItems=items.filter(tx=>parseDate(tx.date).getDate()!==Number(tx.recurringDay)||(tx.paidDate&&tx.paidDate!==tx.date));
+            if(movedItems.length!==1)return;
+            const moved=movedItems[0];
+            const generated=items.filter(tx=>tx!==moved&&!tx.paid&&(tx.actual===null||tx.actual===undefined||tx.actual==='')&&!tx.note&&parseDate(tx.date).getDate()===Number(tx.recurringDay)&&tx.name===moved.name&&Number(tx.plan)===Number(moved.plan));
+            if(generated.length){
+              const ids=new Set(generated.map(tx=>tx.id));
+              monthData.transactions=monthData.transactions.filter(tx=>!ids.has(tx.id));
+              monthData.deletedTransactionIds=[...new Set([...(monthData.deletedTransactionIds||[]),...ids])];
+              changed=true;
             }
           });
         });
@@ -2592,13 +2598,19 @@
         const previous=editingTransaction?month().transactions.find(t=>t.id===editingTransaction):null;
         if(tx.paid||hasRecordedExpense(tx)){
           const todayKey=localDateKey(realToday);
-          tx.paidDate=previous?.paidDate||(targetMonth===monthKeyFrom(realToday)?todayKey:date);
+          tx.paidDate=previous&&(previous.paid||hasRecordedExpense(previous))&&previous.date!==date?date:previous?.paidDate||(targetMonth===monthKeyFrom(realToday)?todayKey:date);
         }
         if(editingTransaction){
           const sourceMonth=month();
           const index=sourceMonth.transactions.findIndex(t=>t.id===editingTransaction);
           const original=sourceMonth.transactions[index];
           tx.recurringId=original?.recurringId;tx.recurringDay=original?.recurringDay;tx.templateId=original?.templateId;
+          tx.salaryPart=original?.salaryPart;
+          if(tx.recurringId&&(tx.recurringDay===undefined||tx.recurringDay===null||tx.recurringDay==='')){
+            const rule=[...(state.recurring||[]),...(state.recurringIncome||[])].find(r=>r.id===tx.recurringId);
+            const days=rule?recurringDays(rule):[];
+            tx.recurringDay=days.length===1?days[0]:parseDate(original.date).getDate();
+          }
           if(targetMonth!==state.selectedMonth){
             if(original?.recurringId)suppressRecurringInstance(sourceMonth,original);
             sourceMonth.transactions.splice(index,1);
