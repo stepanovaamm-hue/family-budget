@@ -1125,7 +1125,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
   <script>
     (() => {
       'use strict';
@@ -1678,9 +1678,35 @@
         const dialog=$('#authDialog'); $('#authMessage').textContent=message; if(!dialog.open) dialog.showModal();
       }
 
+      let cloudClientPromise=null;
+      async function ensureCloudClient(){
+        if(cloud.client)return cloud.client;
+        if(cloudClientPromise)return cloudClientPromise;
+        cloudClientPromise=(async()=>{
+          if(!window.supabase?.createClient){
+            await new Promise((resolve,reject)=>{
+              const script=document.createElement('script');
+              const timer=setTimeout(()=>finish(new Error('Не удалось подключить сервис входа. Проверьте интернет и попробуйте ещё раз.')),15000);
+              function finish(error){clearTimeout(timer);script.onload=null;script.onerror=null;if(error){script.remove();reject(error);}else resolve();}
+              script.src='https://unpkg.com/@supabase/supabase-js@2.116.0/dist/umd/supabase.js';
+              script.onload=()=>finish();
+              script.onerror=()=>finish(new Error('Не удалось загрузить сервис входа. Проверьте интернет и попробуйте ещё раз.'));
+              document.head.appendChild(script);
+            });
+          }
+          if(!window.supabase?.createClient)throw new Error('Сервис входа не загрузился. Обновите страницу и попробуйте ещё раз.');
+          const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+          client.auth.onAuthStateChange((_event,sessionNow)=>{cloud.user=sessionNow?.user||null;renderCloudPanel();});
+          cloud.client=client;
+          return client;
+        })();
+        try{return await cloudClientPromise;}finally{cloudClientPromise=null;}
+      }
+
       async function signIn(email,password){
         setCloudStatus('sync','Выполняю вход...');
-        const {data,error}=await cloud.client.auth.signInWithPassword({email,password});
+        const client=await ensureCloudClient();
+        const {data,error}=await client.auth.signInWithPassword({email,password});
         if(error) throw error;
         cloud.user=data.user;
         localStorage.setItem(LAST_EMAIL_KEY,data.user?.email||email);
@@ -1689,8 +1715,9 @@
 
       async function signUp(email,password){
         $('#authMessage').textContent='Создаю аккаунт...';
+        const client=await ensureCloudClient();
         const redirectTo=window.location.origin+window.location.pathname+window.location.search;
-        const {data,error}=await cloud.client.auth.signUp({email,password,options:{emailRedirectTo:redirectTo}});
+        const {data,error}=await client.auth.signUp({email,password,options:{emailRedirectTo:redirectTo}});
         if(error) throw error;
         if(data.session){ cloud.user=data.user; await prepareCloud(); }
         else $('#authMessage').textContent='Аккаунт создан. Подтвердите email по письму, затем вернитесь сюда и войдите.';
@@ -1764,10 +1791,9 @@
 
       async function initCloud(){
         try{
-          cloud.client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+          await ensureCloudClient();
           const {data:{session}}=await cloud.client.auth.getSession();
           cloud.user=session?.user||null;
-          cloud.client.auth.onAuthStateChange((_event,sessionNow)=>{ cloud.user=sessionNow?.user||null; renderCloudPanel(); });
           setCloudStatus('auth','Введите пароль, чтобы открыть бюджет.');
           const params=new URLSearchParams(window.location.search);
           const signupMode=params.get('signup')==='1';
