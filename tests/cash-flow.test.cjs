@@ -44,7 +44,7 @@ const context = {
   localDateKey: () => '2026-10-07',
   save() {}, render() {}, showToast() {},
   $: id => elements[id] ?? (elements[id] = {}), plural: () => 'операций',
-  renderBudgetCalendar() {}, renderTransactionPeriods() {}, renderNextMonthPreview() {},
+  renderBudgetCalendar() {}, renderTransactionPeriods() {}, renderNextMonthPreview() {}, renderMonthlySummary() {},
   isSalaryIncome: tx => tx.type === 'income'
 };
 vm.createContext(context);

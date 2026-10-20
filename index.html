@@ -177,6 +177,35 @@
     .period-ending-actions { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
     .period-ending-actions small { color: var(--muted); font-size: 11px; }
     .period-calculation { grid-column: 1 / -1; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+    .month-report { margin: 20px 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; }
+    .month-report > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; cursor: pointer; }
+    .month-report > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+    .month-report > summary::after { content: '+'; flex: 0 0 auto; font-size: 22px; }
+    .month-report[open] > summary::after { content: '−'; }
+    .month-report .negative { color: var(--expense); }
+    .month-report-title { min-width: 0; }
+    .month-report-title strong { font-size: 20px; font-weight: 600; }
+    .month-report-title small { display: block; margin-top: 4px; color: var(--muted); }
+    .month-report-result { margin-left: auto; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    .month-report-result small { display: block; color: var(--muted); font-size: 12px; }
+    .month-report-result strong { display: block; font-size: 24px; overflow-wrap: anywhere; }
+    .month-report-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+    .month-report-table th, .month-report-table td { padding: 14px 16px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+    .month-report-table th:first-child { width: 38%; text-align: left; }
+    .month-report-table thead th { background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 500; text-align: right; }
+    .month-report-table tbody th { font-size: 15px; font-weight: 500; }
+    .month-report-table td { text-align: right; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .month-report-table .month-report-free { background: var(--surface-2); }
+    .month-report-note { margin: 0; padding: 12px 16px 16px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+    @media (max-width: 560px) {
+      .month-report > summary { align-items: flex-start; padding: 14px 12px; gap: 10px; }
+      .month-report-title strong { font-size: 17px; }
+      .month-report-title small { font-size: 12px; }
+      .month-report-result { max-width: 48%; }
+      .month-report-result strong { font-size: 20px; }
+      .month-report-table th, .month-report-table td { padding: 12px 8px; }
+      .month-report-table tbody th, .month-report-table td { font-size: 14px; }
+    }
     .period-actual-button { min-height: 30px; padding: 4px 10px; font-size: 12px; font-weight: 700; border-radius: 999px; border: 1px solid #aacdc2; background: rgba(255,255,255,.72); color: #0d6e52; cursor: pointer; }
     .period-actual-button:hover { background: #fff; border-color: #6ba893; }
     .period-actual-value { color: #0d6e52; font-weight: 800; }
@@ -918,6 +947,7 @@
               <div class="metric"><span>Запланировано расходов</span><strong id="plannedExpenses">0 ₽</strong></div>
             </div>
           </div>
+          <div id="overviewMonthReport"></div>
           <div class="savings-widget" aria-label="Копилка">
             <div class="savings-widget-main"><div class="eyebrow">Копилка</div><strong id="savingsWidgetTotal">0 ₽</strong><span>фактически отложено</span></div>
             <div class="savings-widget-metric"><span>В этом месяце</span><strong id="savingsWidgetMonth">0 ₽</strong></div>
@@ -946,6 +976,7 @@
           </div>
           <p class="muted" id="operationsBalanceNote">Учтены только проведённые доходы и расходы. Нажмите «Провести», когда операция состоялась.</p>
           <button class="button secondary small" id="operationsSetBaseline" type="button">Указать фактические деньги на сегодня</button>
+          <div id="operationsMonthReport"></div>
           <div class="section-header"><div class="filters" id="filters"></div><div id="transactionCount" class="muted"></div></div>
           <section class="calendar-panel" aria-labelledby="calendarTitle"><div class="calendar-heading"><div><h2 id="calendarTitle">Календарь месяца</h2><p>Остаток рассчитан на конец каждого дня с учётом плана.</p></div><div class="calendar-legend" aria-label="Обозначения"><span class="income-key">Доходы</span><span class="expense-key">Расходы</span></div></div><div class="calendar-scroll"><div class="calendar-grid" id="budgetCalendar"></div></div></section>
           <div class="period-ledger-list" id="transactionsList"></div>
@@ -2293,8 +2324,28 @@
         return starts.map((start,index)=>({start,end:index<starts.length-1?starts[index+1]-1:lastDay}));
       }
 
+      function monthlySummary(c=calculate()){
+        const result={incomeActual:0,incomeTotal:0,expenseActual:0,expenseTotal:0,savingsActual:0,savingsTotal:0,freeNow:c.balanceNow,freeEnd:c.end};
+        forecastCashFlows(c.txs).forEach(tx=>{
+          const key=tx.type==='income'?'income':isSavingsTx(tx)?'savings':'expense';
+          result[`${key}Total`]+=amountForecast(tx);
+          if(tx.paid&&parseDate(cashFlowDate(tx))<=c.now)result[`${key}Actual`]+=amountOf(tx);
+        });
+        result.monthSurplus=result.incomeTotal-result.expenseTotal-result.savingsTotal;
+        return result;
+      }
+
+      function renderMonthlySummary(container,c=calculate(),expanded=false){
+        const report=monthlySummary(c),isCurrent=state.selectedMonth===monthKeyFrom(realToday);
+        const actualLabel=isCurrent?`Факт на ${fullDate.format(realToday)}`:'Факт',name=monthFormat.format(monthDate());
+        const rows=[['Доходы',report.incomeActual,report.incomeTotal],['Расходы без копилки',report.expenseActual,report.expenseTotal],['В копилку',report.savingsActual,report.savingsTotal],['Свободные деньги',report.freeNow,report.freeEnd]];
+        const open=container.querySelector('details')?.open??expanded;
+        container.innerHTML=`<details class="month-report" ${open?'open':''}><summary><span class="month-report-title"><strong>Итоги месяца</strong><small>${escapeHtml(name)}</small></span><span class="month-report-result"><small>Свободно к концу месяца</small><strong class="${report.freeEnd<0?'negative':''}">${formatMoney(report.freeEnd)}</strong></span></summary><table class="month-report-table" aria-label="Итоги ${escapeHtml(name)}"><thead><tr><th scope="col">Показатель</th><th scope="col">${actualLabel}</th><th scope="col">Весь месяц<br>план + факт</th></tr></thead><tbody>${rows.map(([label,actual,total],index)=>`<tr ${index===3?'class="month-report-free"':''}><th scope="row">${label}</th><td class="${actual<0?'negative':''}">${formatMoney(actual)}</td><td class="${total<0?'negative':''}">${formatMoney(total)}</td></tr>`).join('')}</tbody></table><p class="month-report-note">Из доходов месяца после расходов и копилки: <b>${formatMoney(report.monthSurplus)}</b>, без переходящего остатка. Свободные деньги учитывают остаток с прошлого месяца и заданную вами фактическую сумму. Копилка выделена отдельно и не вычитается дважды.${budgetStartDay()>1?` В этом месяце учтены операции с ${budgetStartDay()} числа.`:''}</p></details>`;
+      }
+
       function renderOverview() {
         const c=calculate();
+        renderMonthlySummary($('#overviewMonthReport'),c,true);
         $('#balanceNow').textContent=formatMoney(c.balanceNow);
         $('#balanceNowNote').textContent = c.baseline ? `Точка отсчёта задана на ${fullDate.format(parseDate(c.baseline.date))}. Новые проведённые расходы уже учтены.` : `${c.opening?`Перенесено с прошлого месяца ${formatMoney(c.opening)}. `:''}${c.balanceNow >= 0 ? 'Учтены полученные доходы и расходы на дату оплаты.' : 'Расходы по проведённым операциям превышают поступившие деньги.'}`;
         $('#setBaseline').textContent=c.baseline?'Изменить сумму на текущий день':'Задать деньги на текущий день';
@@ -2349,6 +2400,7 @@
 
       function renderTransactions() {
         const current=calculate(),isCurrent=state.selectedMonth===monthKeyFrom(realToday);
+        renderMonthlySummary($('#operationsMonthReport'),current);
         $('#operationsBalanceLabel').textContent=isCurrent?`Остаток на сегодня · ${fullDate.format(realToday)}`:state.selectedMonth<monthKeyFrom(realToday)?'Фактический остаток на конец месяца':'Деньги на начало месяца';
         $('#operationsBalanceNow').textContent=formatMoney(current.balanceNow);
         $('#operationsUntilIncome').textContent=formatMoney(current.untilIncome);
