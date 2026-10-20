@@ -1142,6 +1142,9 @@
       const SUPABASE_KEY = 'sb_publishable_VbfT1VEsS1a-Lu-_EZlKKA_T52dbc07';
       const cloud = { client:null, user:null, householdId:null, channel:null, status:'sync', message:'Подключаюсь...', updatedAt:null, personalTransactions:[] };
       let cloudSaveTimer = null;
+      let cloudSaveInFlight = null;
+      let cloudSaveQueued = false;
+      const ownCloudWrites = new Set();
       let loginPhraseTimer = null;
       let loginPhraseIndex = 2;
       const LOGIN_PHRASES = [
@@ -1616,8 +1619,9 @@
       }
       function mergeSharedState(remote) {
         if(!remote || remote.version!==1 || !remote.months || !Array.isArray(remote.recurring)) throw new Error('Некорректный формат данных в облаке');
-        const months=remote.months;
+        const months=JSON.parse(JSON.stringify(remote.months));
         let changed=preserveDeletionMarkers(months,state.months);
+        if(preservePendingPayments(months))changed=true;
         state = { ...state, months, recurring:remote.recurring, recurringIncome:Array.isArray(remote.recurringIncome)?remote.recurringIncome:[], savingsForecastDate:remote.savingsForecastDate||state.savingsForecastDate||'', migrations:remote.migrations||{} };
         if(migrateLegacyMashaSalary(state))changed=true;
         if(ensureMashaSalaryV17(state))changed=true;
@@ -1628,6 +1632,37 @@
         if(changed) queueCloudSave();
       }
       function save() { persistLocal(); queueCloudSave(); }
+      function rememberPaymentUpdate(tx,key=state.selectedMonth){
+        if(!state.pendingPaymentUpdates)state.pendingPaymentUpdates={};
+        tx.paymentUpdatedAt=new Date(Math.max(Date.now(),(Date.parse(tx.paymentUpdatedAt)||0)+1)).toISOString();
+        tx.paymentUpdateId=uid('payment');
+        state.pendingPaymentUpdates[`${key}|${tx.id}`]={month:key,id:tx.id,userId:cloud.user?.id||null,version:tx.paymentUpdateId,paid:tx.paid,actual:tx.actual??null,paidDate:tx.paidDate||null,paymentUpdatedAt:tx.paymentUpdatedAt,paymentUpdateId:tx.paymentUpdateId};
+      }
+      function preservePendingPayments(months){
+        let changed=false;
+        const apply=(tx,patch)=>{
+          tx.paid=patch.paid;tx.actual=patch.actual??null;
+          if(patch.paidDate)tx.paidDate=patch.paidDate;else delete tx.paidDate;
+          tx.paymentUpdatedAt=patch.paymentUpdatedAt;tx.paymentUpdateId=patch.paymentUpdateId;
+        };
+        Object.entries(state.months||{}).forEach(([key,monthData])=>{
+          (monthData.transactions||[]).forEach(local=>{
+            if(!local.paymentUpdatedAt)return;
+            const remote=months[key]?.transactions?.find(tx=>tx.id===local.id);
+            if(!remote)return;
+            const localVersion=`${local.paymentUpdatedAt}|${local.paymentUpdateId||''}`,remoteVersion=`${remote.paymentUpdatedAt||''}|${remote.paymentUpdateId||''}`;
+            if(!remote.paymentUpdatedAt||localVersion>remoteVersion){apply(remote,local);changed=true;}
+          });
+        });
+        Object.values(state.pendingPaymentUpdates||{}).forEach(patch=>{
+          if(patch.userId&&patch.userId!==cloud.user?.id)return;
+          const tx=months[patch.month]?.transactions?.find(item=>item.id===patch.id);
+          if(!tx)return;
+          if(tx.paid!==patch.paid||tx.actual!==patch.actual||(tx.paidDate||null)!==patch.paidDate||tx.paymentUpdateId!==patch.paymentUpdateId)changed=true;
+          apply(tx,patch);
+        });
+        return changed;
+      }
       function setCloudStatus(status,message){ cloud.status=status; cloud.message=message; renderCloudPanel(); }
       function cloudErrorMessage(error){ return error?.message || 'Не удалось выполнить запрос к Supabase.'; }
       function formatCloudTime(value){ if(!value)return ''; try{return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(value));}catch(_){return '';} }
@@ -1775,24 +1810,46 @@
 
       function queueCloudSave(){
         if(!cloud.client||!cloud.user||!cloud.householdId)return;
+        if(cloudSaveInFlight){cloudSaveQueued=true;return;}
         clearTimeout(cloudSaveTimer); cloudSaveTimer=setTimeout(()=>saveCloudState({silent:true}),700);
       }
 
       async function saveCloudState({silent=false}={}){
         if(!cloud.client||!cloud.user||!cloud.householdId)return;
+        if(cloudSaveInFlight){cloudSaveQueued=true;return cloudSaveInFlight;}
+        clearTimeout(cloudSaveTimer);
+        cloudSaveQueued=false;
         if(!silent)setCloudStatus('sync','Сохраняю изменения...');
         const now=new Date().toISOString();
-        const payload={household_id:cloud.householdId,data:sharedState(),updated_at:now,updated_by:cloud.user.id};
-        const {error}=await cloud.client.from('budget_state').upsert(payload,{onConflict:'household_id'});
-        if(error){ setCloudStatus('error',cloudErrorMessage(error)); return; }
-        cloud.updatedAt=now; setCloudStatus('ready','Изменения сохранены в общей базе.');
+        const userId=cloud.user.id,householdId=cloud.householdId;
+        const paymentVersions=JSON.parse(JSON.stringify(state.pendingPaymentUpdates||{}));
+        const payload={household_id:householdId,data:JSON.parse(JSON.stringify(sharedState())),updated_at:now,updated_by:userId};
+        ownCloudWrites.add(now);
+        if(ownCloudWrites.size>100)ownCloudWrites.delete(ownCloudWrites.values().next().value);
+        cloudSaveInFlight=(async()=>{
+          try{
+            const {error}=await cloud.client.from('budget_state').upsert(payload,{onConflict:'household_id'});
+            if(error)throw error;
+            if(cloud.user?.id!==userId||cloud.householdId!==householdId)return;
+            Object.entries(paymentVersions).forEach(([key,patch])=>{
+              if(state.pendingPaymentUpdates?.[key]?.version===patch.version)delete state.pendingPaymentUpdates[key];
+            });
+            persistLocal();
+            if(!cloud.updatedAt||now>cloud.updatedAt)cloud.updatedAt=now;
+            setCloudStatus(cloudSaveQueued?'sync':'ready',cloudSaveQueued?'Сохраняю следующие изменения...':'Изменения сохранены в общей базе.');
+          }catch(error){setCloudStatus('error',`${cloudErrorMessage(error)} Отметки сохранены на устройстве; повторите сохранение после восстановления связи.`);}
+        })();
+        try{await cloudSaveInFlight;}finally{
+          cloudSaveInFlight=null;
+          if(cloudSaveQueued){cloudSaveQueued=false;queueCloudSave();}
+        }
       }
 
       function subscribeCloud(){
         if(cloud.channel) cloud.client.removeChannel(cloud.channel);
         cloud.channel=cloud.client.channel(`budget-${cloud.householdId}`).on('postgres_changes',{event:'*',schema:'public',table:'budget_state',filter:`household_id=eq.${cloud.householdId}`},payload=>{
           const row=payload.new; if(!row?.data)return;
-          if(row.updated_by===cloud.user?.id && row.updated_at===cloud.updatedAt)return;
+          if(ownCloudWrites.has(row.updated_at)||(row.updated_at&&cloud.updatedAt&&row.updated_at<=cloud.updatedAt))return;
           try{ mergeSharedState(row.data); cloud.updatedAt=row.updated_at; setCloudStatus('ready','Получены изменения с другого устройства.'); render(); }
           catch(error){ setCloudStatus('error',error.message); }
         }).subscribe();
@@ -2090,7 +2147,9 @@
       }
 
       function render() {
-        generateRecurring(state, state.selectedMonth); save();
+        const before=JSON.stringify(state.months);
+        generateRecurring(state, state.selectedMonth);
+        if(before!==JSON.stringify(state.months))save();else persistLocal();
         const d=monthDate();
         $('#monthName').textContent = monthFormat.format(d);
         const systemKey=monthKeyFrom(realToday);
@@ -2312,6 +2371,7 @@
 
       function renderNextMonthPreview(){
         const key=adjacentMonthKey(state.selectedMonth,1);
+        const before=JSON.stringify(state.months);
         generateRecurring(state,key);
         const data=state.months[key];
         const d=parseDate(`${key}-01`);
@@ -2319,7 +2379,7 @@
         $('#nextMonthPreviewSubtitle').textContent='Плановые операции, которые уже есть в бюджете.';
         const list=sortTx(data.transactions||[]);
         $('#nextMonthTransactions').innerHTML=ledgerMarkup(list,false,false);
-        save();
+        if(before!==JSON.stringify(state.months))save();
       }
 
       function renderBudgetCalendar(){
@@ -2636,6 +2696,7 @@
             state.months[targetMonth].transactions.push(tx);
           }else month().transactions.push(tx);
         }
+        if(tx.paid||hasRecordedExpense(tx)||(previous&&(previous.paid||hasRecordedExpense(previous))))rememberPaymentUpdate(tx,targetMonth);
         save(); closeDialog($('#transactionDialog')); render(); showToast(editingTransaction&&targetMonth!==state.selectedMonth?'Операция перенесена в следующий месяц':editingTransaction?'Операция обновлена':'Операция добавлена');
       }
 
@@ -2728,7 +2789,7 @@
           save();closeDialog($('#transactionDialog'));render();showToast('Операция удалена');
         }
       }
-      function togglePaid(id){const tx=month().transactions.find(t=>t.id===id);if(!tx)return;tx.paid=!tx.paid;if(tx.paid){if(tx.actual===null||tx.actual===undefined||tx.actual==='')tx.actual=Number(tx.plan||0);const todayKey=localDateKey(realToday);tx.paidDate=todayKey.slice(0,7)===state.selectedMonth?todayKey:tx.date;}else{delete tx.paidDate;tx.actual=null;}save();render();showToast(tx.paid?`«${tx.name}»: ${tx.type==='income'?'доход получен':'расход проведён'} ${fullDate.format(parseDate(tx.paidDate))}`:`«${tx.name}» возвращён в план`);}
+      function togglePaid(id,desiredPaid=null){const tx=month().transactions.find(t=>t.id===id);if(!tx)return;const next=desiredPaid===null?!tx.paid:Boolean(desiredPaid);if(tx.paid===next)return;tx.paid=next;if(tx.paid){if(tx.actual===null||tx.actual===undefined||tx.actual==='')tx.actual=Number(tx.plan||0);const todayKey=localDateKey(realToday);tx.paidDate=todayKey.slice(0,7)===state.selectedMonth?todayKey:tx.date;}else{delete tx.paidDate;tx.actual=null;}rememberPaymentUpdate(tx);save();render();showToast(tx.paid?`«${tx.name}»: ${tx.type==='income'?'доход получен':'расход проведён'} ${fullDate.format(parseDate(tx.paidDate))}`:`«${tx.name}» возвращён в план`);}
       function deleteRecurring(){if(!editingRecurring)return;if(confirm('Удалить постоянный расход и его неоплаченные будущие операции?')){state.recurring=state.recurring.filter(r=>r.id!==editingRecurring);Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==editingRecurring||t.paid);});save();closeDialog($('#recurringDialog'));render();showToast('Постоянный расход удалён');}}
 
       function deletePeriod(start,end){
@@ -2791,6 +2852,7 @@
         tx.plan=remaining;
         if(tx.actual!==null&&tx.actual!==undefined&&tx.actual!=='')tx.actual=Math.min(Number(tx.actual),remaining);
         tx.paid=Boolean(tx.paid&&tx.actual!==null&&tx.actual!==undefined&&tx.actual!==''&&Number(tx.actual)>=remaining);
+        if(tx.paymentUpdatedAt||tx.paid||hasRecordedExpense(tx))rememberPaymentUpdate(tx);
       }
 
       function freezeRecurringSplitSource(monthData,tx){
@@ -2903,7 +2965,7 @@
         const editPrivate=e.target.closest('.edit-private'); if(editPrivate){openPrivateTransaction('income',editPrivate.closest('[data-private-id]').dataset.privateId);return;}
         const editTx=e.target.closest('.edit-tx'); if(editTx){openTransaction('expense',editTx.closest('[data-id]').dataset.id);return;}
         const moveEdited=e.target.closest('#moveEditedTransaction'); if(moveEdited){startMoveFromTransactionEditor();return;}
-        const pay=e.target.closest('.toggle-paid'); if(pay){togglePaid(pay.closest('[data-id]').dataset.id);return;}
+        const pay=e.target.closest('.toggle-paid'); if(pay){if(e.detail>1)return;togglePaid(pay.closest('[data-id]').dataset.id,pay.getAttribute('aria-pressed')!=='true');return;}
         const move=e.target.closest('.move-tx'); if(move){openMoveTransaction(move.closest('[data-id]').dataset.id);return;}
         const addPeriod=e.target.closest('.add-period-expense'); if(addPeriod){openTransaction('expense',null,{start:Number(addPeriod.dataset.periodStart),end:Number(addPeriod.dataset.periodEnd)});return;}
         const removePeriod=e.target.closest('.delete-period'); if(removePeriod){deletePeriod(Number(removePeriod.dataset.periodStart),Number(removePeriod.dataset.periodEnd));return;}
@@ -2923,6 +2985,7 @@
         if(e.target.matches('.toggle-recurring')){const r=state.recurring.find(x=>x.id===e.target.closest('[data-id]').dataset.id);r.active=e.target.checked;if(!r.active){Object.entries(state.months).forEach(([key,m])=>{if(key>=state.selectedMonth)m.transactions=m.transactions.filter(t=>t.recurringId!==r.id||t.paid);});}else{generateRecurring(state,state.selectedMonth);}save();render();showToast(r.active?'Постоянный расход включён':'Постоянный расход выключен');}      });
       document.addEventListener('input',e=>{if(['recIncomeMonthlySalary','recIncomeSalaryPayDayFirst','recIncomeSalaryPayDaySecond'].includes(e.target.id)){invalidateRecurringIncomeSalaryCalculation();return;}if(['recIncomeSalaryFirstAmount','recIncomeSalarySecondAmount'].includes(e.target.id)){updateSalaryResultTotal();}});
       document.addEventListener('toggle',e=>{if(e.target.matches?.('.recurring-section')){const section=e.target.dataset.recurringSection;if(e.target.open)openRecurringSections.add(section);else openRecurringSections.delete(section);return;}if(e.target.matches?.('.period-group')){const key=e.target.dataset.periodKey;if(!key)return;if(e.target.open)openTransactionPeriods.add(key);else openTransactionPeriods.delete(key);}},true);
+      document.addEventListener('pointerdown',e=>{const row=e.target.closest('.draggable-expense');if(row)row.draggable=!e.target.closest('button,a,input,select,textarea');});
       document.addEventListener('dragstart',e=>{const row=e.target.closest('.draggable-expense');if(!row)return;draggedTransactionId=row.dataset.id;row.classList.add('dragging');if(e.dataTransfer){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',draggedTransactionId);}});
       document.addEventListener('dragover',e=>{const period=e.target.closest('.period-group');if(!period||!draggedTransactionId)return;e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect='move';$$('.period-group.drop-target').forEach(group=>{if(group!==period)group.classList.remove('drop-target');});period.classList.add('drop-target');});
       document.addEventListener('dragleave',e=>{const period=e.target.closest('.period-group');if(period&&!period.contains(e.relatedTarget))period.classList.remove('drop-target');});
@@ -2969,6 +3032,8 @@
       document.addEventListener('click',async e=>{if(e.target.closest('#cloudOpenAuth')){showAuth();return;}if(e.target.closest('#cloudPull')){try{await loadCloudState({bootstrap:false});}catch(error){setCloudStatus('error',cloudErrorMessage(error));}return;}if(e.target.closest('#cloudPush')){await saveCloudState();return;}if(e.target.closest('#cloudSignOut')){if(cloud.channel)cloud.client.removeChannel(cloud.channel);await cloud.client.auth.signOut({scope:'local'});cloud.user=null;cloud.householdId=null;cloud.personalTransactions=[];setCloudStatus('auth','Вы вышли. Локальная копия остаётся на этом устройстве.');showLoginGate(localStorage.getItem(LAST_EMAIL_KEY)||'');return;}});
       document.addEventListener('submit',async e=>{if(e.target.id!=='cloudInviteForm')return;e.preventDefault();const email=e.target.elements.email.value.trim().toLowerCase();if(!email||!cloud.householdId)return;const {error}=await cloud.client.from('household_invitations').insert({household_id:cloud.householdId,email,invited_by:cloud.user.id});if(error){showToast(error.code==='23505'?'Приглашение для этого email уже создано':cloudErrorMessage(error));return;}e.target.reset();showToast('Приглашение сохранено. Муж может зарегистрироваться с этим email.');});
       $$('dialog').filter(dialog=>dialog.id!=='authDialog').forEach(dialog=>dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();}));
+      window.addEventListener('online',queueCloudSave);
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&Object.keys(state.pendingPaymentUpdates||{}).length)saveCloudState({silent:true});});
       initNav(); switchView(state.activeView||'overview'); renderCloudPanel(); initCloud();
     })();
   </script>

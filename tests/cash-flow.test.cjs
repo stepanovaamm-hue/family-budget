@@ -29,6 +29,7 @@ const october = {openingBalance: 0, transactions: [
 ]};
 const elements = {};
 const context = {
+  cloud: {user:{id:'test-user'}}, uid: prefix=>`${prefix}-${Math.random()}`,
   state: {selectedMonth: '2026-10', months: {'2026-09': september, '2026-10': october}, filter: 'all'},
   realToday: new Date(2026, 9, 7), month: () => october,
   sortTx: list => [...list].sort((a, b) => a.date.localeCompare(b.date)),
@@ -51,7 +52,7 @@ vm.runInContext(html.match(/const hasRecordedExpense =[^\r\n]+/)[0], context);
 vm.runInContext(html.match(/const cashFlowDate =[^\r\n]+/)[0], context);
 for (const name of ['adjacentMonthKey', 'budgetStartDay', 'periodActualKey', 'periodActualBalance',
   'getPeriodRanges', 'openingBalanceForMonth', 'actualCashBalance', 'monthClosingBalance',
-  'forecastCashFlows', 'calculate', 'togglePaid', 'renderTransactions']) vm.runInContext(extract(name), context);
+  'forecastCashFlows', 'calculate', 'rememberPaymentUpdate', 'togglePaid', 'renderTransactions']) vm.runInContext(extract(name), context);
 const run = code => vm.runInContext(code, context);
 assert.equal(run('openingBalanceForMonth()'), 80, 'Carry actual cash, ignoring unpaid plans');
 assert.equal(run('calculate().balanceNow'), 50, 'Deduct early payment, ignore unreceived income');
